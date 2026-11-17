@@ -35,3 +35,6 @@ impl ValidatedSnapshot {
 
 #[cfg(feature = "synthetic-dev")]
 pub mod synthetic;
+
+#[cfg(feature = "experimental-xml")]
+pub mod xml221;

@@ -7,9 +7,12 @@ rust-version = "1.85"
 [features]
 default = []
 synthetic-dev = []
+experimental-xml = ["dep:roxmltree", "dep:quick-xml"]
 
 [dependencies]
 rusqlite = { version = "=0.32.1", features = ["bundled"] }
 serde_json = "=1.0.140"
 sha2 = "=0.10.8"
 sha1 = "=0.10.6"
+roxmltree = { version = "=0.20.0", optional = true }
+quick-xml = { version = "=0.37.5", optional = true }

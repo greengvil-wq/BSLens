@@ -1,0 +1,134 @@
+{
+  "format_version": "2.21",
+  "objects": [
+    {
+      "format_version": "2.21",
+      "modules": [
+        {
+          "kind": "ObjectModule",
+          "namespace": "synthetic-r02",
+          "origin": "hierarchical-path",
+          "path": "Catalogs/Items/Ext/ObjectModule.bsl",
+          "status": "found"
+        }
+      ],
+      "name": "Items",
+      "namespace": "synthetic-r02",
+      "path": "Catalogs/Items.xml",
+      "provenance": {
+        "format_version": "/MetaDataObject/@version",
+        "name": "/MetaDataObject/Catalog/Properties/Name",
+        "path": "Catalogs/Items.xml",
+        "selector": "/MetaDataObject/Catalog",
+        "type": "/MetaDataObject/Catalog",
+        "uuid": "/MetaDataObject/Catalog/@uuid"
+      },
+      "status": "found",
+      "type": "Catalog",
+      "uuid": "00000000-0000-0000-0000-000000000002",
+      "xml_namespace": "http://v8.1c.ru/8.3/MDClasses"
+    },
+    {
+      "format_version": "2.21",
+      "modules": [],
+      "name": "Synthetic",
+      "namespace": "synthetic-r02",
+      "path": "Configuration.xml",
+      "provenance": {
+        "format_version": "/MetaDataObject/@version",
+        "name": "/MetaDataObject/Configuration/Properties/Name",
+        "path": "Configuration.xml",
+        "selector": "/MetaDataObject/Configuration",
+        "type": "/MetaDataObject/Configuration",
+        "uuid": "/MetaDataObject/Configuration/@uuid"
+      },
+      "status": "found",
+      "type": "Configuration",
+      "uuid": "00000000-0000-0000-0000-000000000001",
+      "xml_namespace": "http://v8.1c.ru/8.3/MDClasses"
+    },
+    {
+      "format_version": "2.21",
+      "modules": [
+        {
+          "kind": "ObjectModule",
+          "namespace": "synthetic-r02",
+          "origin": "hierarchical-path",
+          "path": "Documents/Order/Ext/ObjectModule.bsl",
+          "status": "found"
+        }
+      ],
+      "name": "Order",
+      "namespace": "synthetic-r02",
+      "path": "Documents/Order.xml",
+      "provenance": {
+        "format_version": "/MetaDataObject/@version",
+        "name": "/MetaDataObject/Document/Properties/Name",
+        "path": "Documents/Order.xml",
+        "selector": "/MetaDataObject/Document",
+        "type": "/MetaDataObject/Document",
+        "uuid": "/MetaDataObject/Document/@uuid"
+      },
+      "status": "found",
+      "type": "Document",
+      "uuid": "00000000-0000-0000-0000-000000000003",
+      "xml_namespace": "http://v8.1c.ru/8.3/MDClasses"
+    },
+    {
+      "format_version": "2.21",
+      "modules": [],
+      "name": "Events",
+      "namespace": "synthetic-r02",
+      "path": "InformationRegisters/Events.xml",
+      "provenance": {
+        "format_version": "/MetaDataObject/@version",
+        "name": "/MetaDataObject/InformationRegister/Properties/Name",
+        "path": "InformationRegisters/Events.xml",
+        "selector": "/MetaDataObject/InformationRegister",
+        "type": "/MetaDataObject/InformationRegister",
+        "uuid": "/MetaDataObject/InformationRegister/@uuid"
+      },
+      "status": "found",
+      "type": "InformationRegister",
+      "uuid": "00000000-0000-0000-0000-000000000004",
+      "xml_namespace": "http://v8.1c.ru/8.3/MDClasses"
+    }
+  ],
+  "omissions": [],
+  "omitted_by_type": {},
+  "omitted_count": 0,
+  "scope": {
+    "absence": "no conclusion outside scope",
+    "depth": "top-level objects and declared module paths only",
+    "nested_supported_entities": "reject",
+    "types": [
+      "Configuration",
+      "Catalog",
+      "Document",
+      "InformationRegister"
+    ],
+    "unsupported_types": "exclude after envelope and identity checks",
+    "validation": "no XSD or semantic validation of omitted objects"
+  },
+  "scope_status": "limited_structural_scope",
+  "status": "found",
+  "unverified": [
+    {
+      "path": "Configuration.xml",
+      "selector": "/MetaDataObject/Configuration/Properties/{http://v8.1c.ru/8.3/MDClasses}Synonym"
+    },
+    {
+      "path": "Catalogs/Items.xml",
+      "selector": "/MetaDataObject/Catalog/Properties/{http://v8.1c.ru/8.3/MDClasses}Synonym"
+    },
+    {
+      "path": "Documents/Order.xml",
+      "selector": "/MetaDataObject/Document/Properties/{http://v8.1c.ru/8.3/MDClasses}Synonym"
+    },
+    {
+      "path": "InformationRegisters/Events.xml",
+      "selector": "/MetaDataObject/InformationRegister/Properties/{http://v8.1c.ru/8.3/MDClasses}Synonym"
+    }
+  ],
+  "validation": "observed-structure-subset-only"
+}
