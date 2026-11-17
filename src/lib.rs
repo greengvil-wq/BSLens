@@ -38,3 +38,11 @@ pub mod synthetic;
 
 #[cfg(feature = "experimental-xml")]
 pub mod xml221;
+
+#[cfg(feature = "experimental-git")]
+pub mod git_manifest;
+#[cfg(feature = "experimental-tree")]
+pub mod structure;
+
+#[cfg(feature = "experimental-pipeline")]
+pub mod pipeline;
