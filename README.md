@@ -67,3 +67,10 @@ cargo test --locked --all-features
 ```
 
 [Решение R02](docs/adr-002.md) · [Проверки R02](docs/testing-r02.md)
+
+## R04-A: дерево структуры (эксперимент)
+
+Feature `experimental-tree` включает библиотечную проекцию `structure::Structure`
+над XML subset: конфигурация, группы, объекты, модули и отдельные unassigned.
+Методы, source-ссылки и MCP пока отсутствуют. Идентификатор проекции не является
+идентификатором снимка. [Контракт и ограничения](docs/adr-004-structure.md).

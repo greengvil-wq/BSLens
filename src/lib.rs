@@ -38,3 +38,6 @@ pub mod synthetic;
 
 #[cfg(feature = "experimental-xml")]
 pub mod xml221;
+
+#[cfg(feature = "experimental-tree")]
+pub mod structure;

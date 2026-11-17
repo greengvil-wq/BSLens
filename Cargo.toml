@@ -8,6 +8,7 @@ rust-version = "1.85"
 default = []
 synthetic-dev = []
 experimental-xml = ["dep:roxmltree", "dep:quick-xml"]
+experimental-tree = ["experimental-xml"]
 
 [dependencies]
 rusqlite = { version = "=0.32.1", features = ["bundled"] }
