@@ -1,0 +1,15 @@
+[package]
+name = "bslens-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+
+[features]
+default = []
+synthetic-dev = []
+
+[dependencies]
+rusqlite = { version = "=0.32.1", features = ["bundled"] }
+serde_json = "=1.0.140"
+sha2 = "=0.10.8"
+sha1 = "=0.10.6"

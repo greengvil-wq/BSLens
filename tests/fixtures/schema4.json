@@ -1,0 +1,126 @@
+{
+  "expected_source": {
+    "end_byte": 59,
+    "oid": "6e6930a36f710309b73d399b4b51adbe627c9da7",
+    "path": "Пример.bsl",
+    "positions": [
+      [
+        1,
+        0,
+        12
+      ],
+      [
+        2,
+        12,
+        33
+      ],
+      [
+        3,
+        33,
+        46
+      ],
+      [
+        4,
+        46,
+        59
+      ]
+    ],
+    "sha256": "21a486742d80c6731ecdd758003d4f9cf31db1ae1dc0ae174d94711577dd6d56",
+    "start_byte": 0,
+    "text": "﻿// 😀\r\nProcedure Example()\r\nEndProcedure\n// конец"
+  },
+  "metadata": {
+    "adapter": {
+      "objects": [],
+      "status": "not_detected",
+      "unverified": []
+    },
+    "bsl_scope": {
+      "completeness": "partial; empty results never prove absence of calls",
+      "model": "bsl-local-zero-args-v2",
+      "resolution": "same-module-only"
+    },
+    "commit": "5442d2f3ab034d77219be826d33b331a3f1000cf",
+    "inventory": [
+      [
+        "Empty.bsl",
+        "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+      ],
+      [
+        "Пример.bsl",
+        "6e6930a36f710309b73d399b4b51adbe627c9da7"
+      ]
+    ],
+    "navigation_scope": {
+      "alphabet": "ASCII and Russian letters including Yo outside strings/comments",
+      "body_validation": false,
+      "call_analysis": false,
+      "completeness": "partial; absence is unknown",
+      "kind": "lexical-navigation-only",
+      "model": "bsl-lexical-method-spans-v1"
+    },
+    "profile": "synthetic-bsl-utf8-lines-v2",
+    "schema_version": 4,
+    "snapshot_id": "bslens-v4-6ae8ca133d0c80b5417bc7580aef97b71a326f5b8325623e3670cfa2ed896d99",
+    "source_id": "rust-golden",
+    "tree": "df3cb9334d69121310bf3a29304665495e911fba"
+  },
+  "tables": {
+    "bsl_facts": [
+      [
+        "Пример.bsl",
+        "methods",
+        0,
+        "{\"body_end_byte\":45,\"end_byte\":31,\"kind\":\"procedure\",\"line\":2,\"name\":\"example\",\"path\":\"\\u041f\\u0440\\u0438\\u043c\\u0435\\u0440.bsl\",\"resolution\":\"unique\",\"start_byte\":12}"
+      ]
+    ],
+    "bsl_navigation": [
+      [
+        "Пример.bsl",
+        "boundaries",
+        0,
+        "{\"duplicate\":false,\"end_byte\":45,\"end_line\":3,\"header_end_byte\":31,\"header_end_line\":2,\"header_start_byte\":12,\"kind\":\"procedure\",\"name\":\"example\",\"occurrences\":1,\"path\":\"\\u041f\\u0440\\u0438\\u043c\\u0435\\u0440.bsl\",\"start_byte\":12,\"start_line\":2}"
+      ]
+    ],
+    "positions": [
+      [
+        "Пример.bsl",
+        1,
+        0,
+        12
+      ],
+      [
+        "Пример.bsl",
+        2,
+        12,
+        33
+      ],
+      [
+        "Пример.bsl",
+        3,
+        33,
+        46
+      ],
+      [
+        "Пример.bsl",
+        4,
+        46,
+        59
+      ]
+    ],
+    "sources": [
+      [
+        "Empty.bsl",
+        "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        ""
+      ],
+      [
+        "Пример.bsl",
+        "6e6930a36f710309b73d399b4b51adbe627c9da7",
+        "21a486742d80c6731ecdd758003d4f9cf31db1ae1dc0ae174d94711577dd6d56",
+        "efbbbf2f2f20f09f98800d0a50726f636564757265204578616d706c6528290d0a456e6450726f6365647572650a2f2f20d0bad0bed0bdd0b5d186"
+      ]
+    ]
+  }
+}
