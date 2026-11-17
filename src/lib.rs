@@ -49,3 +49,9 @@ pub mod pipeline;
 
 #[cfg(feature = "experimental-lexical")]
 pub mod lexical;
+
+#[cfg(feature = "experimental-stdio")]
+pub mod mcp_transport;
+
+#[cfg(feature = "experimental-router")]
+pub mod mcp_router;
