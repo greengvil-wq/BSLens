@@ -1,0 +1,73 @@
+[
+  {
+    "name": "conditional",
+    "source": "#If Server Then\nProcedure X()\nEndProcedure\n#EndIf",
+    "oracle": {
+      "boundaries": [],
+      "excluded": [
+        {
+          "name": "x",
+          "kind": "procedure",
+          "start_line": 2,
+          "start_byte": 16,
+          "header_start_byte": 16,
+          "header_end_byte": 29,
+          "header_end_line": 2,
+          "path": "Authored.bsl",
+          "end_line": 3,
+          "end_byte": 42,
+          "occurrences": 1,
+          "duplicate": false,
+          "reasons": [
+            "opened-inside-conditional"
+          ],
+          "rejected_scope": "method"
+        }
+      ]
+    }
+  },
+  {
+    "name": "async",
+    "source": "Async Function X()\nEndFunction",
+    "oracle": {
+      "boundaries": [],
+      "excluded": [
+        {
+          "name": "x",
+          "kind": "function",
+          "start_line": 1,
+          "start_byte": 0,
+          "header_start_byte": 0,
+          "header_end_byte": 18,
+          "header_end_line": 1,
+          "path": "Authored.bsl",
+          "end_line": 2,
+          "end_byte": 30,
+          "occurrences": 1,
+          "duplicate": false,
+          "reasons": [
+            "async-header-unsupported"
+          ],
+          "rejected_scope": "method"
+        }
+      ]
+    }
+  },
+  {
+    "name": "ambiguous",
+    "source": "x=1; Procedure X()\nEndProcedure",
+    "oracle": {
+      "boundaries": [],
+      "excluded": [
+        {
+          "path": "Authored.bsl",
+          "line": 1,
+          "reasons": [
+            "unsupported-boundary-layout"
+          ],
+          "rejected_scope": "whole-module"
+        }
+      ]
+    }
+  }
+]

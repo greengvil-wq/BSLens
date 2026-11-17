@@ -7,6 +7,7 @@ pub const MAX_PAGE: usize = 20;
 pub const MAX_TEXT_BYTES: usize = 16384;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NodeKind {
+    Method,
     Configuration,
     ObjectType,
     Object,

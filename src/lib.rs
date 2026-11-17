@@ -46,3 +46,6 @@ pub mod structure;
 
 #[cfg(feature = "experimental-pipeline")]
 pub mod pipeline;
+
+#[cfg(feature = "experimental-lexical")]
+pub mod lexical;
