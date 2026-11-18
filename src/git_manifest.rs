@@ -146,6 +146,7 @@ impl Manifest {
             return Err(err(Code::Object));
         }
         reader.walk(&tree, "", 0)?;
+        reader.shell.finish(deadline)?;
         reader.files.sort_by(|a, b| a.path.cmp(&b.path));
         Ok(Self {
             commit: commit.into(),
@@ -256,7 +257,7 @@ impl ObjectReader {
             .checked_sub(self.bytes)
             .ok_or_else(|| err(Code::Limit))?;
         let cap = remaining.min(self.limits.object_bytes);
-        let raw = self.shell.read(oid, cap, self.deadline)?;
+        let raw = self.shell.read(oid, kind, cap, self.deadline)?;
         let header_end = raw
             .iter()
             .position(|&b| b == b'\n')
