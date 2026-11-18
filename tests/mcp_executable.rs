@@ -324,3 +324,67 @@ fn opt_in_cache_miss_warm_corruption_rebuild_and_default_unchanged() {
         assert!(denied.stdout.is_empty());
     }
 }
+
+#[test]
+fn region_fixture_actual_stdio_matches_direct_source_and_scope() {
+    use bslens_core::{git_manifest::Limits, pipeline::GitStructure};
+    let mut f = Fixture::new();
+    let body="\u{feff}#Область Наружная\r\n#rEgIoN Inner // region\r\n  Процедура Тест()\r\nКонецПроцедуры\r\n#EndRegion\r\n#КонецОбласти\r\n";
+    fs::write(f.path.join("Ext/SessionModule.bsl"), body).unwrap();
+    f.git(&["add", "."]);
+    f.git(&[
+        "-c",
+        "user.name=Synthetic",
+        "-c",
+        "user.email=synthetic@invalid",
+        "commit",
+        "-qm",
+        "regions",
+    ]);
+    f.sha = f.git(&["rev-parse", "HEAD"]);
+    let core = GitStructure::read(&f.path, &f.sha, Limits::default()).unwrap();
+    let module = core.page(None, 0, 20).unwrap().page.items[0].id.clone();
+    let page = core.page(Some(&module), 0, 20).unwrap();
+    let hint = page.methods[0].source.as_ref().unwrap();
+    let expected = core.source(hint).unwrap();
+    #[cfg(feature = "experimental-cache")]
+    {
+        let cache = f.path.join("cache");
+        bslens_core::cache::build(&f.path, &f.sha, &cache).unwrap();
+        let warm = bslens_core::cache::open(&f.path, &f.sha, &cache).unwrap();
+        assert_eq!(warm.page(Some(&module), 0, 20).unwrap(), page);
+        assert_eq!(warm.source(hint).unwrap(), expected);
+    }
+    let mut p = Peer::start(&f);
+    p.send(request(1,"initialize",json!({"protocolVersion":PROTOCOL,"capabilities":{},"clientInfo":{"name":"region-test","version":"1"}})));
+    assert!(p.response()["result"].is_object());
+    p.send(json!({"jsonrpc":"2.0","method":"notifications/initialized"}));
+    p.send(request(2, "tools/list", json!({})));
+    let list = p.response()["result"].clone();
+    assert_eq!(
+        list["scope"]["lexical"],
+        "r09-zero-args-regions-outside-methods"
+    );
+    p.send(call(
+        3,
+        "tree",
+        json!({"commit":f.sha,"scope_id":list["scope_id"],"node_id":module}),
+    ));
+    let wire_page = p.response()["result"]["structuredContent"].clone();
+    let reference = wire_page["data"]["methods"][0]["source"].clone();
+    assert_eq!(reference["start_line"], 3);
+    assert_eq!(reference["end_line"], 4);
+    p.send(call(4, "source", reference));
+    let wire = p.response()["result"]["structuredContent"].clone();
+    let source = &wire["data"];
+    assert_eq!(source["text"], expected.text);
+    assert_eq!(source["sha256"], expected.sha256);
+    assert_eq!(source["start_byte"], expected.start_byte);
+    assert_eq!(source["end_byte"], expected.end_byte);
+    assert_eq!(source["positions"], json!(expected.positions));
+    assert_eq!(wire["scope_id"], list["scope_id"]);
+    assert_eq!(source["text"], "  Процедура Тест()\r\nКонецПроцедуры\r\n");
+    let (status, err) = p.finish();
+    assert!(status.success());
+    assert!(err.is_empty());
+}

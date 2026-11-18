@@ -44,7 +44,7 @@ impl Router {
     fn new(core: GitStructure) -> Self {
         let c = core.context();
         let context = json!({"commit":c.commit,"tree":c.tree,"selected_files":c.selected_files,"other_files":c.other_files});
-        let scope = json!({"router":"r06b-read-only-v1","xml":"r02-xml221-subset","structure":"r05b-git-methods","lexical":"r04b-zero-args-control-checked","source":"physical-utf8-lines-100-text-budget-v1","production":false});
+        let scope = json!({"router":"r06b-read-only-v1","xml":"r02-xml221-subset","structure":"r05b-git-methods","lexical":"r09-zero-args-regions-outside-methods","source":"physical-utf8-lines-100-text-budget-v1","production":false});
         let scope_id = format!(
             "{:x}",
             Sha256::digest(serde_json::to_vec(&json!({"context":context,"scope":scope})).unwrap())

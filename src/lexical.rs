@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 pub const MAX_BYTES: usize = 1024 * 1024;
 pub const MAX_LINES: usize = 65536;
 pub const MAX_TOKENS: usize = 100000;
+pub const MAX_REGION_DEPTH: usize = 64;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reason {
     Limit,
@@ -12,6 +13,10 @@ pub enum Reason {
     ReservedName,
     MultilineString,
     DirectiveUnsupported,
+    RegionHeader,
+    RegionInsideMethod,
+    RegionUnmatchedEnd,
+    RegionMissingEnd,
     AnnotationUnsupported,
     AsyncUnsupported,
     UnsupportedHeader,
@@ -139,6 +144,45 @@ fn reserved_name(s: &str) -> bool {
             | "не"
     )
 }
+// Only standalone structural directives; never a general preprocessor.
+fn region(text: &str, line: usize) -> Result<Option<bool>, Refusal> {
+    let text = text.trim_start_matches([' ', '\t']);
+    let Some(text) = text.strip_prefix('#') else {
+        return Ok(None);
+    };
+    if text.starts_with([' ', '\t']) {
+        return fail(Reason::DirectiveUnsupported, line);
+    }
+    let text = text.split_once("//").map_or(text, |(before, _)| before);
+    let parts: Vec<_> = text
+        .split([' ', '\t'])
+        .filter(|p| !p.is_empty())
+        .take(3)
+        .collect();
+    let Some(keyword) = parts.first() else {
+        return fail(Reason::DirectiveUnsupported, line);
+    };
+    match keyword.to_lowercase().as_str() {
+        "region" | "область" => {
+            if parts.len() != 2 {
+                return fail(Reason::RegionHeader, line);
+            }
+            let mut chars = parts[1].chars();
+            if !chars.next().is_some_and(letter) || !chars.all(|c| letter(c) || c.is_ascii_digit())
+            {
+                return fail(Reason::RegionHeader, line);
+            }
+            Ok(Some(true))
+        }
+        "endregion" | "конецобласти" => {
+            if parts.len() != 1 {
+                return fail(Reason::RegionHeader, line);
+            }
+            Ok(Some(false))
+        }
+        _ => fail(Reason::DirectiveUnsupported, line),
+    }
+}
 fn tokens(text: &str, base: usize, line: usize, count: &mut usize) -> Result<Vec<Token>, Refusal> {
     let mut out = vec![];
     let mut chars = text.char_indices().peekable();
@@ -226,6 +270,7 @@ pub fn analyze(raw: &[u8]) -> Result<Analysis, Refusal> {
     let mut current: Option<Boundary> = None;
     let mut found = vec![];
     let mut stack = vec![];
+    let mut regions = vec![];
     let mut count = 0;
     let mut offset = 0;
     let mut last_line = 1;
@@ -244,6 +289,27 @@ pub fn analyze(raw: &[u8]) -> Result<Analysis, Refusal> {
                 body = s;
                 base += 3;
             }
+        }
+        if let Some(open) = region(body, line)? {
+            if current.is_some() {
+                return fail(Reason::RegionInsideMethod, line);
+            }
+            if !stack.is_empty() {
+                return fail(Reason::Delimiters, line);
+            }
+            count += if open { 2 } else { 1 };
+            if count > MAX_TOKENS {
+                return fail(Reason::Limit, line);
+            }
+            if open {
+                if regions.len() >= MAX_REGION_DEPTH {
+                    return fail(Reason::Limit, line);
+                }
+                regions.push(line);
+            } else if regions.pop().is_none() {
+                return fail(Reason::RegionUnmatchedEnd, line);
+            }
+            continue;
         }
         let row = tokens(body, base, line, &mut count)?;
         if row.is_empty() {
@@ -324,6 +390,9 @@ pub fn analyze(raw: &[u8]) -> Result<Analysis, Refusal> {
     }
     if !stack.is_empty() {
         return fail(Reason::Delimiters, last_line);
+    }
+    if let Some(line) = regions.first() {
+        return fail(Reason::RegionMissingEnd, *line);
     }
     let mut counts = BTreeMap::new();
     for b in &found {
