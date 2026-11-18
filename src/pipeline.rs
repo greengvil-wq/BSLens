@@ -72,6 +72,25 @@ impl GitStructure {
                 .collect(),
         })
     }
+    #[cfg(feature = "experimental-cache")]
+    pub(crate) fn from_cached(context: Context, files: Vec<File>) -> Result<Self, Error> {
+        let blobs = files
+            .iter()
+            .map(|f| (f.path.clone(), f.bytes().to_vec()))
+            .collect();
+        let subset = Xml221Subset::inspect(&blobs).map_err(Error::Xml)?;
+        let structure = Structure::from_subset(&subset).map_err(Error::Structure)?;
+        Ok(Self {
+            context,
+            structure,
+            sources: files
+                .into_iter()
+                .filter(|f| f.path.ends_with(".bsl"))
+                .map(|f| (f.path.clone(), f))
+                .collect(),
+        })
+    }
+
     pub fn context(&self) -> &Context {
         &self.context
     }

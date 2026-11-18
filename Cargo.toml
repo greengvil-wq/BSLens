@@ -6,6 +6,7 @@ rust-version = "1.85"
 
 [features]
 default = []
+experimental-cache = ["experimental-pipeline"]
 synthetic-dev = []
 experimental-stdio = ["dep:serde"]
 experimental-router = ["experimental-stdio", "experimental-pipeline"]

@@ -85,17 +85,37 @@ pub struct File {
     bytes: Vec<u8>,
 }
 impl File {
+    #[cfg(feature = "experimental-cache")]
+    pub(crate) fn cached(path: String, mode: u32, oid: String, bytes: Vec<u8>) -> Result<Self> {
+        if !valid_oid(&oid) || object_id("blob", &bytes, oid.len()) != oid {
+            return Err(err(Code::Identity));
+        }
+        Ok(Self {
+            path,
+            mode,
+            oid,
+            sha256: hex(&Sha256::digest(&bytes)),
+            bytes,
+        })
+    }
+
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
 }
 #[derive(Debug)]
 pub struct Manifest {
+    #[cfg(feature = "experimental-cache")]
+    checked_bytes: usize,
     commit: String,
     tree: String,
     files: Vec<File>,
 }
 impl Manifest {
+    #[cfg(feature = "experimental-cache")]
+    pub(crate) fn checked_bytes(&self) -> usize {
+        self.checked_bytes
+    }
     pub fn commit(&self) -> &str {
         &self.commit
     }
@@ -113,7 +133,15 @@ impl Manifest {
             .map(|f| (f.path.clone(), f.bytes.clone()))
             .collect()
     }
+    #[cfg(feature = "experimental-cache")]
+    pub(crate) fn inventory(repo: &Path, commit: &str) -> Result<Self> {
+        Self::read_mode(repo, commit, Limits::default(), true)
+    }
+
     pub fn read(repo: &Path, commit: &str, limits: Limits) -> Result<Self> {
+        Self::read_mode(repo, commit, limits, false)
+    }
+    fn read_mode(repo: &Path, commit: &str, limits: Limits, inventory: bool) -> Result<Self> {
         if !valid_oid(commit) {
             return Err(err(Code::InvalidSha));
         }
@@ -123,6 +151,7 @@ impl Manifest {
         let shell = process::Shell::new(&objects, commit.len())?;
         let mut reader = ObjectReader {
             shell,
+            inventory,
             limits,
             deadline,
             count: 0,
@@ -149,6 +178,8 @@ impl Manifest {
         reader.shell.finish(deadline)?;
         reader.files.sort_by(|a, b| a.path.cmp(&b.path));
         Ok(Self {
+            #[cfg(feature = "experimental-cache")]
+            checked_bytes: reader.bytes,
             commit: commit.into(),
             tree,
             files: reader.files,
@@ -234,6 +265,7 @@ fn object_store(repo: &Path, deadline: Instant) -> Result<PathBuf> {
     Ok(objects)
 }
 struct ObjectReader {
+    inventory: bool,
     shell: process::Shell,
     limits: Limits,
     deadline: Instant,
@@ -332,7 +364,15 @@ impl ObjectReader {
                     if self.files.len() >= self.limits.files || !self.paths.insert(path.clone()) {
                         return Err(err(Code::Limit));
                     }
-                    let bytes = self.object(&child, "blob")?;
+                    let bytes = if self.inventory {
+                        self.count += 1;
+                        if self.count > self.limits.objects {
+                            return Err(err(Code::Limit));
+                        }
+                        Vec::new()
+                    } else {
+                        self.object(&child, "blob")?
+                    };
                     self.files.push(File {
                         path,
                         mode: if mode == b"100644" {

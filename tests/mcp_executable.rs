@@ -253,3 +253,74 @@ fn relative_repository_is_refused_before_opening_valid_context() {
         "Expected --repo ABSOLUTE_PATH --commit FULL_SHA\n"
     );
 }
+
+#[cfg(feature = "experimental-cache")]
+fn cache_run(f: &Fixture, args: &[&str]) -> std::process::Output {
+    let mut child = f
+        .command()
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let input=concat!("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2025-11-25\",\"capabilities\":{},\"clientInfo\":{\"name\":\"cache-test\",\"version\":\"1\"}}}\n", "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\n", "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}\n");
+    let _ = child.stdin.take().unwrap().write_all(input.as_bytes());
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("cache CLI timeout")
+        }
+        thread::sleep(Duration::from_millis(2));
+    }
+    child.wait_with_output().unwrap()
+}
+#[cfg(feature = "experimental-cache")]
+#[test]
+fn opt_in_cache_miss_warm_corruption_rebuild_and_default_unchanged() {
+    let f = Fixture::new();
+    let dir = f.path.join("cache");
+    let path = dir.to_str().unwrap();
+    let plain = cache_run(&f, &[]);
+    assert!(plain.status.success());
+    assert!(!dir.exists());
+    let cold = cache_run(&f, &["--cache-dir", path]);
+    assert!(
+        cold.status.success(),
+        "{}",
+        String::from_utf8_lossy(&cold.stderr)
+    );
+    assert_eq!(cold.stdout, plain.stdout);
+    assert!(cold.stderr.is_empty());
+    let cached = dir.join(format!("v1-{}.bslcache", f.sha));
+    let bytes = fs::read(&cached).unwrap();
+    let warm = cache_run(&f, &["--cache-dir", path]);
+    assert!(warm.status.success());
+    assert_eq!(warm.stdout, plain.stdout);
+    assert_eq!(fs::read(&cached).unwrap(), bytes);
+    fs::write(&cached, b"corrupt").unwrap();
+    let bad = cache_run(&f, &["--cache-dir", path]);
+    assert!(!bad.status.success());
+    assert!(bad.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("--rebuild-cache"));
+    assert_eq!(fs::read(&cached).unwrap(), b"corrupt");
+    let rebuilt = cache_run(&f, &["--cache-dir", path, "--rebuild-cache"]);
+    assert!(rebuilt.status.success());
+    assert_eq!(rebuilt.stdout, plain.stdout);
+    assert_eq!(fs::read(&cached).unwrap(), bytes);
+    for args in [
+        vec!["--rebuild-cache"],
+        vec!["--cache-dir", "relative"],
+        vec!["--cache-dir", path, "--cache-dir", path],
+        vec!["--cache-dir", path, "--rebuild-cache", "--rebuild-cache"],
+    ] {
+        let denied = cache_run(&f, &args);
+        assert!(!denied.status.success());
+        assert!(denied.stdout.is_empty());
+    }
+}

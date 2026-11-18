@@ -54,3 +54,9 @@ cargo test --locked --all-features
 [Подключение и проверка MCP](docs/adr-006c-executable.md) ·
 [Контракт методов и исходника](docs/adr-005b-methods.md) ·
 [Проверка Git и построение дерева](docs/adr-005-pipeline.md)
+
+## Необязательный кеш повторного запуска
+
+Для Linux доступен opt-in кеш выбранных XML/BSL исходников. Он включается feature
+`experimental-cache` и параметром `--cache-dir`; обычный запуск не меняется.
+[Подключение, ограничения и явное перестроение](docs/adr-008b-cache-cli.md).

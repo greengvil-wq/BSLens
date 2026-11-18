@@ -55,3 +55,6 @@ pub mod mcp_transport;
 
 #[cfg(feature = "experimental-router")]
 pub mod mcp_router;
+
+#[cfg(feature = "experimental-cache")]
+pub mod cache;
