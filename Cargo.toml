@@ -7,6 +7,7 @@ rust-version = "1.85"
 [features]
 default = []
 experimental-snapshot-mcp = ["experimental-router", "experimental-snapshot-v5"]
+experimental-v5-ingest = ["experimental-git"]
 experimental-v5-reader = ["experimental-snapshot-v5"]
 experimental-snapshot-v5 = ["experimental-pipeline", "rusqlite/blob"]
 experimental-cache = ["experimental-pipeline"]
