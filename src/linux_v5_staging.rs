@@ -1,4 +1,5 @@
-//! Linux S4: bounded descriptor copy before SQLite. No parser or facts hash here.
+//! Linux x86_64 S4: bounded descriptor copy before SQLite. No parser or facts hash here.
+#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use sha2::{Digest, Sha256};
 use std::{
     ffi::CString,
@@ -34,6 +35,7 @@ pub enum Error {
     Limit,
     Name,
     Digest,
+    NotStandalone,
     Io(io::Error),
     Staging {
         directory: PathBuf,
@@ -162,6 +164,26 @@ pub(crate) struct StagedSnapshot {
     name: CString,
     pub(crate) path: PathBuf,
     pub(crate) snapshot_id: String,
+}
+impl StagedSnapshot {
+    /// Inspect only the checksum-verified private copy, never the input path.
+    pub(crate) fn validate_standalone(&self) -> Result<()> {
+        let mut file = at(
+            &self.directory,
+            std::ffi::OsStr::from_bytes(self.name.as_bytes()),
+            NONBLOCK,
+        )?;
+        let mut header = [0u8; 20];
+        match file.read_exact(&mut header) {
+            Ok(()) => {}
+            Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Err(Error::NotStandalone),
+            Err(e) => return Err(e.into()),
+        }
+        if &header[..16] != b"SQLite format 3\0" || header[18] != 1 || header[19] != 1 {
+            return Err(Error::NotStandalone);
+        }
+        Ok(())
+    }
 }
 impl Drop for StagedSnapshot {
     fn drop(&mut self) {

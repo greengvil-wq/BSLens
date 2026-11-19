@@ -1,4 +1,5 @@
 //! Experimental Linux v5 reader. Offline verification does not attest Git provenance.
+#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 pub use crate::linux_v5_staging::Error as StagingError;
 use crate::linux_v5_staging::{self, StagedSnapshot};
 use crate::snapshot_v5::{self, contract};
@@ -144,13 +145,27 @@ impl LinuxSnapshotReader {
         expected: Option<&str>,
         max_bytes: u64,
     ) -> Result<Self> {
+        Self::open_with(path, staging, expected, max_bytes, |copy| {
+            Connection::open_with_flags(
+                copy,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )
+        })
+    }
+
+    // Private seam verifies the checksum/header ordering without opening SQLite in tests.
+    fn open_with(
+        path: &Path,
+        staging: &Path,
+        expected: Option<&str>,
+        max_bytes: u64,
+        open_sqlite: impl FnOnce(&Path) -> rusqlite::Result<Connection>,
+    ) -> Result<Self> {
         let copy =
             linux_v5_staging::stage(path, staging, expected, max_bytes).map_err(Error::Staging)?;
-        // The only filesystem SQLite path is a successfully hashed private copy.
-        let connection = Connection::open_with_flags(
-            &copy.path,
-            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-        )?;
+        copy.validate_standalone().map_err(Error::Staging)?;
+        // SQLite receives only a checksum-verified, rollback-mode private copy.
+        let connection = open_sqlite(&copy.path)?;
         connection.execute_batch("PRAGMA query_only=ON; PRAGMA trusted_schema=OFF;")?;
         connection.execute_batch("BEGIN;")?;
         // One shared bounded schema/profile/metadata/compatibility validator from S3.
@@ -352,6 +367,69 @@ fn verify_saved_sources(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn wal_signature_and_checksum_fail_before_sqlite_without_sidecars() {
+        use sha2::{Digest, Sha256};
+        use std::{fs, os::unix::fs::PermissionsExt};
+        let root = std::env::temp_dir().join(format!("bslens-s4-wal-{}", std::process::id()));
+        fs::create_dir(&root).unwrap();
+        fs::set_permissions(&root, fs::Permissions::from_mode(0o700)).unwrap();
+        let staging = root.join("stage");
+        fs::create_dir(&staging).unwrap();
+        fs::set_permissions(&staging, fs::Permissions::from_mode(0o700)).unwrap();
+        let original = root.join("fixture.sqlite");
+        let db = Connection::open(&original).unwrap();
+        db.execute_batch("PRAGMA journal_mode=WAL; CREATE TABLE example(value); INSERT INTO example VALUES(1); PRAGMA wal_checkpoint(TRUNCATE);").unwrap();
+        drop(db);
+        let wal = fs::read(&original).unwrap();
+        assert_eq!(&wal[18..20], &[2, 2]);
+        let check = |bytes: &[u8], corrupt: bool| {
+            let path = root.join(format!(
+                "bslens-v5-{}.{}.sqlite",
+                "0".repeat(64),
+                format!("{:x}", Sha256::digest(bytes))
+            ));
+            fs::write(&path, bytes).unwrap();
+            if corrupt {
+                fs::write(&path, b"bad checksum and bad header").unwrap();
+            }
+            let mut called = false;
+            let result = LinuxSnapshotReader::open_with(&path, &staging, None, 1_000_000, |_| {
+                called = true;
+                panic!("SQLite must not be called")
+            });
+            assert!(!called);
+            if corrupt {
+                assert!(matches!(result, Err(Error::Staging(StagingError::Digest))));
+            } else {
+                assert!(matches!(
+                    result,
+                    Err(Error::Staging(StagingError::NotStandalone))
+                ));
+            }
+            assert_eq!(
+                fs::read_dir(&staging).unwrap().count(),
+                0,
+                "no private copies or WAL/SHM/journal sidecars"
+            );
+        };
+        check(&wal, false);
+        check(&wal, true);
+        let mut bad = wal.clone();
+        bad[..16].fill(0);
+        bad[18] = 1;
+        bad[19] = 1;
+        check(&bad, false);
+        let mut modes = wal.clone();
+        modes[18] = 1;
+        check(&modes, false);
+        modes[18] = 2;
+        modes[19] = 1;
+        check(&modes, false);
+        check(b"short", false);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn source_and_tree_use_saved_unparsed_bytes_without_parser() {
         use sha2::{Digest, Sha256};
