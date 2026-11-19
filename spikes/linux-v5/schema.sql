@@ -9,6 +9,11 @@ CREATE TABLE metadata (
     schema_version INTEGER NOT NULL CHECK (schema_version = 5),
     profile TEXT NOT NULL CHECK (profile = 'linux-v5-spike-xml221-bsl-r09'),
     snapshot_id TEXT NOT NULL CHECK (snapshot_id GLOB 'bslens-v5-?*'),
+    built_at_utc TEXT NOT NULL CHECK (
+        length(built_at_utc) = 20 AND
+        built_at_utc GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z' AND
+        strftime('%Y-%m-%dT%H:%M:%SZ', built_at_utc) IS NOT NULL AND
+        strftime('%Y-%m-%dT%H:%M:%SZ', built_at_utc) = built_at_utc),
     facts_sha256 TEXT CHECK (facts_sha256 IS NULL OR
         (length(facts_sha256) = 64 AND facts_sha256 NOT GLOB '*[^0-9a-f]*')),
     source_id TEXT NOT NULL CHECK (length(source_id) > 0),
@@ -76,8 +81,6 @@ CREATE TABLE source_lines (
     byte_start INTEGER NOT NULL CHECK (byte_start >= 0),
     byte_end INTEGER NOT NULL CHECK (byte_end > byte_start),
     PRIMARY KEY(path,line_number),
-    UNIQUE(path,line_number,byte_start),
-    UNIQUE(path,line_number,byte_end),
     FOREIGN KEY(path,source_kind) REFERENCES sources(path,kind)
 ) STRICT;
 CREATE TABLE methods (
@@ -92,8 +95,8 @@ CREATE TABLE methods (
     byte_start INTEGER NOT NULL CHECK (byte_start >= 0),
     byte_end INTEGER NOT NULL CHECK (byte_end > byte_start),
     FOREIGN KEY(module_path,parse_status) REFERENCES modules(path,parse_status),
-    FOREIGN KEY(module_path,start_line,byte_start) REFERENCES source_lines(path,line_number,byte_start),
-    FOREIGN KEY(module_path,end_line,byte_end) REFERENCES source_lines(path,line_number,byte_end),
+    FOREIGN KEY(module_path,start_line) REFERENCES source_lines(path,line_number),
+    FOREIGN KEY(module_path,end_line) REFERENCES source_lines(path,line_number),
     UNIQUE(module_path,start_line)
 ) STRICT;
 CREATE INDEX method_branch ON methods(module_path,start_line,method_id);

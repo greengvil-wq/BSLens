@@ -4,7 +4,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from fixture import ROOT, SOURCES, ACCEPTED, UNPARSED, ORPHAN, populate, physical_lines, read_range
+from fixture import ROOT, SOURCES, ACCEPTED, UNPARSED, ORPHAN, ROOT_MODULES, populate, physical_lines, read_range
 
 
 class SchemaTests(unittest.TestCase):
@@ -54,8 +54,8 @@ class SchemaTests(unittest.TestCase):
         self.reject("UPDATE modules SET reason_code='Limit' WHERE path=?", (ACCEPTED,))
         self.reject("UPDATE modules SET reason_code='unstable prose' WHERE path=?", (UNPARSED,))
         self.reject("UPDATE modules SET parse_status='unknown' WHERE path=?", (ORPHAN,))
-        for assignment in ['exported=2', "kind='unknown'", 'start_line=0', 'end_line=1',
-                           'byte_start=1', 'byte_end=99999']:
+        for assignment in ['exported=2', "kind='unknown'", 'start_line=0', 'end_line=0', 'end_line=999',
+                           'byte_start=-1', 'byte_end=0']:
             self.reject('UPDATE methods SET ' + assignment)
 
     def test_source_line_invariants(self):
@@ -68,14 +68,17 @@ class SchemaTests(unittest.TestCase):
 
     def test_tree_kind_level_order_and_empty_object(self):
         self.assertEqual(self.branch('configuration', 1),
-            [('kind', 'Catalog', 'Catalog', None, None), ('kind', 'Document', 'Document', None, None)])
+            [('module', p, p, 'accepted', None) for p in ROOT_MODULES] +
+            [('kind', 'Catalog', 'Catalog', None, None), ('kind', 'Document', 'Document', None, None),
+             ('unconfirmed', 'unconfirmed', 'Владелец не подтверждён', None, None)])
         self.assertEqual(self.branch('kind', 1, 'Catalog'),
             [('object', '4', 'Empty', None, None), ('object', '2', 'Items', None, None)])
         self.assertEqual(self.branch('object', 4), [])
         self.assertEqual(self.branch('object', 3), [('module', UNPARSED, UNPARSED, 'unparsed', 'RegionHeader')])
         self.assertEqual(self.branch('object', 2), [('module', ACCEPTED, ACCEPTED, 'accepted', None)])
         self.assertEqual(self.branch('module', module_path=UNPARSED), [])
-        self.assertEqual(self.branch('module', module_path=ACCEPTED), [('method', '1', 'Принятый', 'accepted', None)])
+        self.assertEqual(self.branch('module', module_path=ACCEPTED), [('method', '1', 'ЯПервый', 'accepted', None),
+             ('method', '2', 'АВторой', 'accepted', None)])
         self.assertEqual(self.branch('unconfirmed'), [('module', ORPHAN, ORPHAN, 'accepted', None)])
 
     def test_all_bsl_lines_and_source_hashes(self):
@@ -102,7 +105,37 @@ class SchemaTests(unittest.TestCase):
         for start, end in [(0,1), (1,4), (3,2)]:
             with self.assertRaises(ValueError):
                 read_range(self.db, UNPARSED, start, end)
-        self.assertEqual(read_range(self.db, ACCEPTED, 1, 2), SOURCES[ACCEPTED])
+        self.assertEqual(read_range(self.db, ACCEPTED, 1, 4), SOURCES[ACCEPTED])
+
+    def test_lexical_offsets_are_independent_of_physical_lines(self):
+        data = SOURCES[ACCEPTED]
+        for start_line, end_line, start, end in self.db.execute(
+                'SELECT start_line,end_line,byte_start,byte_end FROM methods ORDER BY start_line'):
+            first_start, first_end = self.db.execute(
+                'SELECT byte_start,byte_end FROM source_lines WHERE path=? AND line_number=?',
+                (ACCEPTED, start_line)).fetchone()
+            last_start, last_end = self.db.execute(
+                'SELECT byte_start,byte_end FROM source_lines WHERE path=? AND line_number=?',
+                (ACCEPTED, end_line)).fetchone()
+            self.assertTrue(first_start < start < first_end)
+            self.assertTrue(last_start < end < last_end)
+            self.assertTrue(data[start:end].startswith('Процедура'.encode()))
+            self.assertTrue(data[start:end].endswith('КонецПроцедуры'.encode()))
+            self.assertEqual(read_range(self.db, ACCEPTED, start_line, end_line), data[first_start:last_end])
+        self.assertTrue(read_range(self.db, ACCEPTED, 1, 2).startswith(b'\xef\xbb\xbf  '))
+        self.assertTrue(read_range(self.db, ACCEPTED, 1, 2).endswith(b'\r\n'))
+        # Межтабличное попадание байтов в строку проверят S3/verify, не FK.
+        self.db.execute('UPDATE methods SET byte_start=1 WHERE method_id=1')
+        self.assertEqual(self.db.execute('PRAGMA foreign_key_check').fetchall(), [])
+
+    def test_build_date_is_utc_and_separate_from_identity(self):
+        before = self.db.execute('SELECT snapshot_id,facts_sha256 FROM metadata').fetchone()
+        self.assertEqual(self.db.execute('SELECT built_at_utc FROM metadata').fetchone(),
+                         ('2026-11-19T00:00:00Z',))
+        for invalid in ['2026-11-19', '2026-11-19T03:00:00+03:00', '2026-13-19T00:00:00Z']:
+            self.reject('UPDATE metadata SET built_at_utc=?', (invalid,))
+        self.db.execute("UPDATE metadata SET built_at_utc='2026-11-20T00:00:00Z'")
+        self.assertEqual(self.db.execute('SELECT snapshot_id,facts_sha256 FROM metadata').fetchone(), before)
 
     def test_physical_line_edge_cases(self):
         for data, expected in [(b'', []), (b'\n', [(1,0,1)]),
