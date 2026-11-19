@@ -70,6 +70,7 @@ pub fn facts_sha256(db: &Connection) -> Result<String> {
 
 /// Входы сборки, без даты, фактов и физического SQLite-файла.
 pub fn snapshot_id(db: &Connection) -> Result<String> {
+    metadata_bounds(db)?;
     let raw: String = db.query_row(
         "SELECT build_parameters FROM metadata WHERE singleton=1",
         [],
@@ -85,11 +86,114 @@ pub fn snapshot_id(db: &Connection) -> Result<String> {
     Ok(format!("bslens-v5-{}", hex(&h.finalize())))
 }
 
-fn catalog(db: &Connection) -> Result<Vec<(String, String, String, Option<String>)>> {
-    Ok(db
+// Только доверенный эталон собирается в Vec; недоверенный каталог — никогда.
+fn check_catalog(db: &Connection, reference: &Connection) -> Result<()> {
+    let expected = reference
         .prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name")?
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
-        .collect::<std::result::Result<_, _>>()?)
+        .query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+                r.get::<_, Option<String>>(3)?,
+            ))
+        })?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    let count: i64 = db.query_row(
+        "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema LIMIT ?1)",
+        [expected.len() as i64 + 1],
+        |r| r.get(0),
+    )?;
+    if count != expected.len() as i64 {
+        return Err(Error::Contract("schema_count"));
+    }
+    let maxima = [
+        expected.iter().map(|r| r.0.len()).max().unwrap_or(0),
+        expected.iter().map(|r| r.1.len()).max().unwrap_or(0),
+        expected.iter().map(|r| r.2.len()).max().unwrap_or(0),
+        expected
+            .iter()
+            .map(|r| r.3.as_ref().map_or(0, String::len))
+            .max()
+            .unwrap_or(0),
+    ];
+    // Проверка байтовых длин до сортировки/выдачи текста. CAST AS BLOB учитывает NUL.
+    for (i, column) in ["type", "name", "tbl_name", "sql"].iter().enumerate() {
+        let invalid:i64=db.query_row(&format!(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE (typeof({column})!='text' AND NOT (?2 AND {column} IS NULL)) OR length(CAST({column} AS BLOB))>?1 LIMIT 1)"),
+            rusqlite::params![maxima[i] as i64,i==3],|r|r.get(0))?;
+        if invalid != 0 {
+            return Err(Error::Contract("schema_field_budget"));
+        }
+    }
+    let mut query =
+        db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name")?;
+    let mut rows = query.query([])?;
+    for (kind, name, table, sql) in &expected {
+        let row = rows.next()?.ok_or(Error::Contract("schema"))?;
+        for (i, value) in [
+            Some(kind.as_str()),
+            Some(name.as_str()),
+            Some(table.as_str()),
+            sql.as_deref(),
+        ]
+        .iter()
+        .enumerate()
+        {
+            let matches = match (row.get_ref(i)?, value) {
+                (ValueRef::Null, None) => true,
+                (ValueRef::Text(actual), Some(expected)) => actual == expected.as_bytes(),
+                _ => false,
+            };
+            if !matches {
+                return Err(Error::Contract("schema"));
+            }
+        }
+    }
+    if rows.next()?.is_some() {
+        return Err(Error::Contract("schema"));
+    }
+    Ok(())
+}
+
+// Бюджеты чтения текущего экспериментального контракта, не лимиты DDL/корпуса.
+// Только скалярные результаты SQL до копирования String или разбора JSON.
+fn metadata_bounds(db: &Connection) -> Result<()> {
+    let count: i64 = db.query_row(
+        "SELECT count(*) FROM (SELECT 1 FROM metadata LIMIT 2)",
+        [],
+        |r| r.get(0),
+    )?;
+    if count != 1 {
+        return Err(Error::Contract("metadata_count"));
+    }
+    for (field, maximum, nullable) in [
+        ("snapshot_id", 74, false),
+        ("built_at_utc", 20, false),
+        ("facts_sha256", 64, true),
+        ("source_id", 1024, false),
+        ("commit_oid", 64, false),
+        ("tree_oid", 64, false),
+        ("core_version", 128, false),
+        ("adapter_version", 128, false),
+        ("xml_version", 16, false),
+        ("lexical_version", 128, false),
+        ("profile", 64, false),
+        ("scope_id", 1024, false),
+        ("relations", 32, false),
+        ("build_parameters", 16 * 1024, false),
+        ("coverage_draft", 1024 * 1024, false),
+        ("limits_draft", 4096, false),
+        ("input_manifest", 16 * 1024 * 1024, false),
+    ] {
+        let invalid:i64=db.query_row(&format!(
+            "SELECT EXISTS(SELECT 1 FROM metadata WHERE (typeof({field})!='text' AND NOT (?2 AND {field} IS NULL)) OR length(CAST({field} AS BLOB))>?1 LIMIT 1)"),
+            rusqlite::params![maximum,nullable],|r|r.get(0))?;
+        if invalid != 0 {
+            return Err(Error::Contract("metadata_field_budget"));
+        }
+    }
+    Ok(())
 }
 /// Точное определение схемы S2, user_version, единственная metadata и известный профиль.
 /// Не открывает путь, не пересчитывает BSL и не создаёт ValidatedSnapshot.
@@ -99,9 +203,8 @@ pub fn validate_schema_profile(db: &Connection) -> Result<()> {
     }
     let reference = Connection::open_in_memory()?;
     reference.execute_batch(SCHEMA)?;
-    if catalog(db)? != catalog(&reference)? {
-        return Err(Error::Contract("schema"));
-    }
+    check_catalog(db, &reference)?;
+    metadata_bounds(db)?;
     let row: (i64, i64, String, String) = db.query_row(
         "SELECT count(*),schema_version,profile,relations FROM metadata",
         [],
