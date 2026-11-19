@@ -25,6 +25,11 @@ pub enum Error {
         maximum: u64,
         actual: u64,
     },
+    SqliteFull {
+        path: PathBuf,
+        sqlite_bytes: u64,
+        max_pages: u64,
+    },
     Contract(&'static str),
     NonReproducible,
     PublicationConflict,
@@ -35,7 +40,11 @@ pub enum Error {
 }
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "v5: {self:?}")
+        match self {
+            Self::SqliteFull {path,sqlite_bytes,max_pages} => write!(f,
+                "v5: диск или лимит страниц SQLite: {}; sqlite_bytes={sqlite_bytes}, max_pages={max_pages}",path.display()),
+            _ => write!(f, "v5: {self:?}"),
+        }
     }
 }
 impl std::error::Error for Error {}
@@ -138,10 +147,11 @@ pub fn build(
     let result = fill(&mut db, &manifest, source_id, limits, None);
     if matches!(&result, Err(Error::Sqlite(rusqlite::Error::SqliteFailure(e, _))) if e.code == rusqlite::ErrorCode::DiskFull)
     {
-        return Err(Error::Limit {
-            name: "sqlite_bytes",
-            maximum: limits.sqlite_bytes,
-            actual: (max_pages + 1) * 4096,
+        // SQLITE_FULL не различает ENOSPC и max_page_count: actual неизвестен.
+        return Err(Error::SqliteFull {
+            path: temp.path.clone(),
+            sqlite_bytes: limits.sqlite_bytes,
+            max_pages,
         });
     }
     let (snapshot_id, facts_sha256) = result?;

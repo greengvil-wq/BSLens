@@ -301,10 +301,19 @@ fn each_limit_names_failure_and_publishes_nothing() {
             _ => cap.sqlite_bytes = 4096,
         }
         let error = build(&f.repo, &f.commit, "synthetic:s3", &f.output, cap).unwrap_err();
-        assert!(
-            matches!(error,Error::Limit {name:n,..} if n==name),
-            "{error:?}"
-        );
+        if name == "sqlite_bytes" {
+            assert!(
+                matches!(&error,Error::SqliteFull {path,sqlite_bytes:4096,max_pages:1} if path.parent()==Some(f.output.as_path())),
+                "{error:?}"
+            );
+            assert!(error.to_string().contains("диск или лимит страниц"));
+            assert!(!error.to_string().contains("actual"));
+        } else {
+            assert!(
+                matches!(error,Error::Limit {name:n,..} if n==name),
+                "{error:?}"
+            );
+        }
         if f.output.exists() {
             assert_eq!(fs::read_dir(&f.output).unwrap().count(), 0);
         }
@@ -656,6 +665,8 @@ fn s4_profile_id_fk_facts_and_metadata_limits_fail_closed() {
     let built = f.build();
     let stage = staging(&f);
     for (sql, expected) in [
+        ("PRAGMA user_version=4", "version"),
+        ("CREATE VIEW extra AS SELECT 1", "limit"),
         (
             "PRAGMA ignore_check_constraints=ON;UPDATE metadata SET profile='unknown'",
             "profile",
@@ -689,6 +700,7 @@ fn s4_profile_id_fk_facts_and_metadata_limits_fail_closed() {
                     | (ReaderError::ForeignKey, "fk")
                     | (ReaderError::Facts, "facts")
                     | (ReaderError::Limit, "limit")
+                    | (ReaderError::Version, "version")
             ),
             "{expected}: {error:?}"
         );
@@ -763,6 +775,93 @@ fn s4_verify_hashes_sources_and_respects_trusted_scratch_limits() {
     assert!(matches!(reader.verify(cap), Err(ReaderError::Limit)));
     let mut cap = limits();
     cap.sqlite_bytes = 4096;
-    assert!(reader.verify(cap).is_err());
+    assert!(
+        matches!(reader.verify(cap), Err(ReaderError::Sqlite(rusqlite::Error::SqliteFailure(e,_))) if e.code == rusqlite::ErrorCode::DiskFull)
+    );
     assert_eq!(fs::read_dir(&stage).unwrap().count(), 1);
+}
+
+#[test]
+fn schema_catalog_budgets_precede_text_comparison() {
+    let f = Fixture::new();
+    let built = f.build();
+    let db = Connection::open(&built.path).unwrap();
+    db.execute_batch("CREATE VIEW extra AS SELECT 1;").unwrap();
+    assert!(matches!(
+        contract::validate_schema_profile(&db),
+        Err(Error::Contract("schema_count"))
+    ));
+    db.execute_batch("DROP VIEW extra; PRAGMA writable_schema=ON;")
+        .unwrap();
+    // Число строк то же; SQL раздувается валидным комментарием.
+    db.execute(
+        "UPDATE sqlite_schema SET sql=sql||? WHERE name='methods'",
+        [format!(" /*{}*/", "x".repeat(1024 * 1024))],
+    )
+    .unwrap();
+    assert!(matches!(
+        contract::validate_schema_profile(&db),
+        Err(Error::Contract("schema_field_budget"))
+    ));
+}
+#[test]
+fn metadata_budgets_cover_identity_compatibility_and_embedded_nul() {
+    let f = Fixture::new();
+    let built = f.build();
+    let db = Connection::open(&built.path).unwrap();
+    for (field, value) in [
+        ("source_id", format!("x{}", "\0".repeat(1025))),
+        ("scope_id", "x".repeat(1025)),
+        ("core_version", "x".repeat(129)),
+        (
+            "build_parameters",
+            serde_json::json!({"x":"a".repeat(16*1024)}).to_string(),
+        ),
+        (
+            "coverage_draft",
+            serde_json::json!({"temporary":true,"x":"a".repeat(1024*1024)}).to_string(),
+        ),
+        (
+            "limits_draft",
+            serde_json::json!({"x":"a".repeat(4096)}).to_string(),
+        ),
+        (
+            "input_manifest",
+            serde_json::json!({"x":"a".repeat(16*1024*1024)}).to_string(),
+        ),
+    ] {
+        db.execute_batch("SAVEPOINT oversized;").unwrap();
+        db.execute(&format!("UPDATE metadata SET {field}=?"), [value])
+            .unwrap();
+        for result in [
+            contract::validate_schema_profile(&db),
+            contract::compatible_scope(&db),
+            contract::snapshot_id(&db).map(|_| ()),
+        ] {
+            assert!(
+                matches!(result, Err(Error::Contract("metadata_field_budget"))),
+                "{field}: {result:?}"
+            );
+        }
+        db.execute_batch("ROLLBACK TO oversized; RELEASE oversized;")
+            .unwrap();
+    }
+    contract::compatible_scope(&db).unwrap();
+    assert_eq!(contract::snapshot_id(&db).unwrap(), built.snapshot_id);
+}
+
+#[test]
+fn s4_reader_is_unaffected_by_s3_sqlite_full_failure() {
+    let f = Fixture::new();
+    let mut cap = limits();
+    cap.sqlite_bytes = 4096;
+    assert!(matches!(
+        build(&f.repo, &f.commit, "synthetic:s3", &f.output, cap),
+        Err(Error::SqliteFull { .. })
+    ));
+    let built = f.build();
+    let stage = staging(&f);
+    let reader =
+        LinuxSnapshotReader::open(&built.path, &stage, None, limits().sqlite_bytes).unwrap();
+    reader.verify(limits()).unwrap();
 }

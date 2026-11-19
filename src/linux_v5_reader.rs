@@ -40,7 +40,9 @@ impl From<snapshot_v5::Error> for Error {
         match e {
             snapshot_v5::Error::Contract("user_version") => Self::Version,
             snapshot_v5::Error::Contract("schema") => Self::Schema,
-            snapshot_v5::Error::Contract("schema_limit") => Self::Limit,
+            snapshot_v5::Error::Contract(
+                "schema_count" | "schema_field_budget" | "metadata_field_budget",
+            ) => Self::Limit,
             snapshot_v5::Error::Contract("profile" | "incompatible_profile") => Self::Profile,
             other => Self::Contract(other.to_string()),
         }
@@ -58,10 +60,6 @@ pub struct LinuxSnapshotReader {
     // Field drop order is deliberate: close SQLite before unlinking the copy.
     connection: Connection,
     _copy: StagedSnapshot,
-}
-
-fn check_schema(connection: &Connection) -> Result<()> {
-    contract::validate_schema(connection).map_err(Error::from)
 }
 
 /// Trusted caller policy; text bytes are UTF-8 payload bytes across all five fields.
@@ -155,22 +153,13 @@ impl LinuxSnapshotReader {
         )?;
         connection.execute_batch("PRAGMA query_only=ON; PRAGMA trusted_schema=OFF;")?;
         connection.execute_batch("BEGIN;")?;
-        check_schema(&connection)?;
-        // Bound text metadata before shared identity/profile JSON functions allocate it.
-        let mut sizes = connection.prepare("SELECT length(CAST(core_version AS BLOB))+length(CAST(adapter_version AS BLOB))+length(CAST(xml_version AS BLOB))+length(CAST(lexical_version AS BLOB))+length(CAST(scope_id AS BLOB))+length(CAST(coverage_draft AS BLOB))+length(CAST(build_parameters AS BLOB))+length(CAST(snapshot_id AS BLOB))+length(CAST(profile AS BLOB))+coalesce(length(CAST(facts_sha256 AS BLOB)),0) FROM metadata")?;
-        if sizes.query_row([], |r| r.get::<_, i64>(0))? > 1_048_576 {
-            return Err(Error::Limit);
-        }
-        drop(sizes);
-        let (version,profile,id,facts):(i64,String,String,Option<String>)=connection.query_row(
-            "SELECT schema_version,profile,snapshot_id,facts_sha256 FROM metadata WHERE singleton=1",[],
-            |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)))?;
-        if version != 5 {
-            return Err(Error::Version);
-        }
-        if profile != contract::PROFILE {
-            return Err(Error::Profile);
-        }
+        // One shared bounded schema/profile/metadata/compatibility validator from S3.
+        contract::compatible_scope(&connection)?;
+        let (id, facts): (String, Option<String>) = connection.query_row(
+            "SELECT snapshot_id,facts_sha256 FROM metadata WHERE singleton=1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
         if id != copy.snapshot_id || contract::snapshot_id(&connection)? != id {
             return Err(Error::Identity);
         }
@@ -186,7 +175,6 @@ impl LinuxSnapshotReader {
         if facts.as_deref() != Some(actual.as_str()) {
             return Err(Error::Facts);
         }
-        contract::compatible_scope(&connection)?;
         Ok(Self {
             connection,
             _copy: copy,
@@ -445,30 +433,6 @@ mod tests {
     }
 
     #[test]
-    fn registry_rejects_excess_count_and_giant_sql() {
-        let db = Connection::open_in_memory().unwrap();
-        db.execute_batch(include_str!("../spikes/linux-v5/schema.sql"))
-            .unwrap();
-        for i in 0..100 {
-            db.execute_batch(&format!("CREATE VIEW extra_{i} AS SELECT 1"))
-                .unwrap();
-        }
-        assert!(matches!(check_schema(&db), Err(Error::Limit)));
-        for i in 0..100 {
-            db.execute_batch(&format!("DROP VIEW extra_{i}")).unwrap();
-        }
-        check_schema(&db).unwrap();
-        // Keep the original row count, so the length check must reject this entry.
-        db.execute_batch("DROP INDEX method_branch").unwrap();
-        db.execute_batch(&format!(
-            "CREATE VIEW extra AS SELECT '{}'",
-            "x".repeat(1_000_000)
-        ))
-        .unwrap();
-        assert!(matches!(check_schema(&db), Err(Error::Limit)));
-    }
-
-    #[test]
     fn tree_row_and_utf8_byte_limits_are_exact_and_reject_giant_field() {
         let db = Connection::open_in_memory().unwrap();
         db.execute_batch(include_str!("../spikes/linux-v5/schema.sql"))
@@ -509,19 +473,6 @@ mod tests {
         )
         .unwrap();
         assert!(matches!(fetch(1, 1024), Err(Error::Limit)));
-    }
-
-    #[test]
-    fn exact_schema_and_v4_rejection() {
-        let db = Connection::open_in_memory().unwrap();
-        db.execute_batch(include_str!("../spikes/linux-v5/schema.sql"))
-            .unwrap();
-        check_schema(&db).unwrap();
-        db.execute_batch("CREATE VIEW extra AS SELECT 1").unwrap();
-        assert!(matches!(check_schema(&db), Err(Error::Limit)));
-        db.execute_batch("DROP VIEW extra; PRAGMA user_version=4")
-            .unwrap();
-        assert!(matches!(check_schema(&db), Err(Error::Version)));
     }
 }
 
