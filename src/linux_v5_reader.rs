@@ -197,6 +197,21 @@ impl LinuxSnapshotReader {
     }
 
     pub fn source(&self, path: &str, start: i64, end: i64, max_bytes: u64) -> Result<Vec<u8>> {
+        self.source_span(path, start, end, max_bytes)
+            .map(|(bytes, _, _)| bytes)
+            .map_err(|e| match e {
+                Error::Limit => Error::Range,
+                other => other,
+            })
+    }
+
+    pub(crate) fn source_span(
+        &self,
+        path: &str,
+        start: i64,
+        end: i64,
+        max_bytes: u64,
+    ) -> Result<(Vec<u8>, i64, i64)> {
         if start < 1 || end < start {
             return Err(Error::Range);
         }
@@ -210,7 +225,7 @@ impl LinuxSnapshotReader {
         }
         let count = u64::try_from(last - first).map_err(|_| Error::Range)?;
         if count > max_bytes {
-            return Err(Error::Range);
+            return Err(Error::Limit);
         }
         let mut blob =
             self.connection
@@ -221,7 +236,7 @@ impl LinuxSnapshotReader {
         blob.seek(SeekFrom::Start(first as u64))?;
         let mut bytes = vec![0; usize::try_from(count).map_err(|_| Error::Range)?];
         blob.read_exact(&mut bytes)?;
-        Ok(bytes)
+        Ok((bytes, first, last))
     }
 
     /// One SQL branch, including parse status and rejection reason; no BSL parsing.
@@ -240,6 +255,106 @@ impl LinuxSnapshotReader {
             kind,
             module_path,
             limits,
+        )
+    }
+
+    // Small internal read-only additions required by MCP: distinguish an absent branch
+    // from an accepted module with zero methods, and return stored source coordinates.
+    #[cfg(feature = "experimental-snapshot-mcp")]
+    pub(crate) fn branch_info(
+        &self,
+        level: &str,
+        parent: Option<i64>,
+        kind: Option<&str>,
+        path: Option<&str>,
+    ) -> Result<(Option<i64>, serde_json::Value)> {
+        use serde_json::json;
+        let missing = || Error::Sqlite(rusqlite::Error::QueryReturnedNoRows);
+        match level {
+            "configuration" | "object" => {
+                let id = if let Some(id) = parent {
+                    id
+                } else if level == "configuration" {
+                    self.connection.query_row(
+                        "SELECT object_id FROM objects WHERE kind='Configuration'",
+                        [],
+                        |r| r.get(0),
+                    )?
+                } else {
+                    return Err(missing());
+                };
+                let n:i64=self.connection.query_row("SELECT length(CAST(name AS BLOB)) FROM objects WHERE object_id=?1 AND ((?2='configuration' AND kind='Configuration') OR (?2='object' AND kind<>'Configuration'))",rusqlite::params![id,level],|r|r.get(0))?;
+                if n > 1024 {
+                    return Err(Error::Limit);
+                }
+                let name: String = self.connection.query_row(
+                    "SELECT name FROM objects WHERE object_id=?1",
+                    [id],
+                    |r| r.get(0),
+                )?;
+                Ok((
+                    Some(id),
+                    json!({"status":"ok","level":level,"parent_id":id,"name":name}),
+                ))
+            }
+            "kind" => {
+                let id = parent.ok_or_else(missing)?;
+                let found: bool = self.connection.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM objects WHERE parent_id=?1 AND kind=?2)",
+                    rusqlite::params![id, kind],
+                    |r| r.get(0),
+                )?;
+                if !found {
+                    return Err(missing());
+                }
+                Ok((
+                    Some(id),
+                    json!({"status":"ok","level":level,"parent_id":id,"kind":kind}),
+                ))
+            }
+            "unconfirmed" => {
+                let found: bool = self.connection.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM modules WHERE owner_id IS NULL)",
+                    [],
+                    |r| r.get(0),
+                )?;
+                if !found {
+                    return Err(missing());
+                }
+                Ok((
+                    None,
+                    json!({"status":"ok","level":level,"ownership":"unconfirmed"}),
+                ))
+            }
+            "module" => {
+                let path = path.ok_or_else(missing)?;
+                let size:i64=self.connection.query_row("SELECT length(CAST(parse_status AS BLOB))+coalesce(length(CAST(reason_code AS BLOB)),0) FROM modules WHERE path=?1",[path],|r|r.get(0))?;
+                if size > 128 {
+                    return Err(Error::Limit);
+                }
+                let (status, reason): (String, Option<String>) = self.connection.query_row(
+                    "SELECT parse_status,reason_code FROM modules WHERE path=?1",
+                    [path],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )?;
+                if !["accepted", "unparsed"].contains(&status.as_str()) {
+                    return Err(Error::Schema);
+                }
+                Ok((
+                    None,
+                    json!({"status":status,"reason":reason,"level":level,"path":path}),
+                ))
+            }
+            _ => Err(Error::Range),
+        }
+    }
+
+    #[cfg(feature = "experimental-snapshot-mcp")]
+    pub(crate) fn method_location(&self, id: i64) -> Result<serde_json::Value> {
+        let (start,end,a,b,exported,kind):(i64,i64,i64,i64,bool,String)=self.connection.query_row(
+            "SELECT start_line,end_line,byte_start,byte_end,exported,CASE kind WHEN 'procedure' THEN 'procedure' WHEN 'function' THEN 'function' ELSE 'unknown' END FROM methods WHERE method_id=?1",[id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?)))?;
+        Ok(
+            serde_json::json!({"kind":kind,"start_line":start,"end_line":end,"start_byte":a,"end_byte":b,"exported":exported,"line_units":"physical_1_based_inclusive","byte_units":"0_based_end_exclusive"}),
         )
     }
 

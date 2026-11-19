@@ -62,3 +62,35 @@ cargo test --locked --all-features
 Для Linux доступен opt-in кеш выбранных XML/BSL исходников. Он включается feature
 `experimental-cache` и параметром `--cache-dir`; обычный запуск не меняется.
 [Подключение, ограничения и явное перестроение](docs/adr-008b-cache-cli.md).
+
+## Автономный MCP по SQLite v5: S5–S6
+
+Экспериментальный режим только Linux x86_64, без Git после построения снимка:
+
+```sh
+cargo build --locked --features experimental-snapshot-mcp --bin bslens-mcp
+./target/debug/bslens-mcp --snapshot /absolute/ID.SHA.sqlite \
+  --staging-dir /absolute/private/staging --max-sqlite-bytes 4000000 \
+  --expected-sha256 SHA
+```
+
+Staging заранее создаётся с правами 0700 и доверенными родителями; число в примере —
+только синтетический бюджет. Параметры `--repo`/`--commit` с `--snapshot` запрещены.
+Один reader обслуживает всю сессию: read-only `metadata`, `tree`, `source`.
+В `tools/call` отсутствие `arguments` равно `{}` (metadata и корневой tree);
+явные неправильные типы отвергаются. `snapshot.coverage` — ограниченная сводка
+`allowlist-v1`: счётчики, число XML-замечаний и SHA-256 нормализованного полного
+покрытия, с `details_omitted=true`. Селекторы, пути и неизвестные поля покрытия
+не передаются. `scope_id` остаётся точным; общий бюджет контекста учитывает escaping.
+Большой coverage_draft сам по себе не блокирует metadata/tree/короткий source.
+
+Байты `source` находятся в `result.structuredContent.data`: при `encoding=utf-8`
+закодируйте поле `data` как UTF-8; при `encoding=base64` декодируйте стандартный
+Base64 с padding. Проверяйте `byte_length`/`sha256`; сохраняйте BOM, CRLF и
+отсутствие последнего LF. Lossy-декодирования нет. 65536 байт — предел **всего**
+JSON-RPC body, включая escaping/конверт и обе формы MCP-ответа. При превышении
+возвращается -32001 без частичного payload; запросите меньший диапазон строк.
+
+[Запуск, handshake, схемы и машинные коды S5–S6](docs/adr-010-s5-s6.md).
+Синтетическая приёмка фактического бинаря: `cargo test --locked --all-features --test mcp_snapshot`.
+Проверки БСП/ERP, замеры S8 и production-приёмка этим не заявляются.
