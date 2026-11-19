@@ -391,3 +391,7 @@ impl ObjectReader {
         Ok(())
     }
 }
+
+/// Separate synthetic-only ingest; not used by S3/S4.
+#[cfg(feature = "experimental-v5-ingest")]
+pub mod ingest;
