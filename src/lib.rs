@@ -58,3 +58,9 @@ pub mod mcp_router;
 
 #[cfg(feature = "experimental-cache")]
 pub mod cache;
+
+// S4 foundation remains private until the S3 shared facts/verify contract is integrated.
+#[cfg(all(target_os = "linux", feature = "experimental-v5-reader"))]
+mod linux_v5_reader;
+#[cfg(all(target_os = "linux", feature = "experimental-v5-reader"))]
+mod linux_v5_staging;
