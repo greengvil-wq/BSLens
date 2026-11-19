@@ -1,4 +1,8 @@
-#![cfg(all(feature = "experimental-snapshot-v5", target_os = "linux"))]
+#![cfg(all(
+    feature = "experimental-snapshot-v5",
+    target_os = "linux",
+    target_arch = "x86_64"
+))]
 use bslens_core::snapshot_v5::{build, contract, Error, Limits};
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};

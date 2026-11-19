@@ -1,4 +1,5 @@
-//! Публикация в приватном каталоге Linux. Каталог не меняется недоверенными процессами.
+//! Публикация в приватном каталоге Linux x86_64. Каталог не меняется недоверенными процессами.
+#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use super::{contract, BuiltSnapshot, Error, Result};
 use rusqlite::{Connection, OpenFlags};
 use sha2::{Digest, Sha256};

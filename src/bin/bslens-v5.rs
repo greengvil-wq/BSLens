@@ -1,17 +1,17 @@
 //! Отдельный локальный CLI S3; существующий MCP не меняется.
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn main() {
     if let Err(e) = run() {
         eprintln!("{e}");
         std::process::exit(1);
     }
 }
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
 fn main() {
-    eprintln!("v5: поддерживается только Linux");
+    eprintln!("v5: поддерживается только Linux x86_64; эта платформа не поддерживается");
     std::process::exit(1);
 }
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     use bslens_core::snapshot_v5::{build, Limits};
     let args: Vec<_> = std::env::args().skip(1).collect();
