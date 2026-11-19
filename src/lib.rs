@@ -58,3 +58,6 @@ pub mod mcp_router;
 
 #[cfg(feature = "experimental-cache")]
 pub mod cache;
+
+#[cfg(all(feature = "experimental-snapshot-v5", target_os = "linux"))]
+pub mod snapshot_v5;
