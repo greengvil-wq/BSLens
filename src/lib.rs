@@ -64,4 +64,16 @@ pub mod cache;
     target_os = "linux",
     target_arch = "x86_64"
 ))]
+pub mod linux_v5_reader;
+#[cfg(all(
+    feature = "experimental-snapshot-v5",
+    target_os = "linux",
+    target_arch = "x86_64"
+))]
+mod linux_v5_staging;
+#[cfg(all(
+    feature = "experimental-snapshot-v5",
+    target_os = "linux",
+    target_arch = "x86_64"
+))]
 pub mod snapshot_v5;

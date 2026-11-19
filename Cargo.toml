@@ -6,7 +6,8 @@ rust-version = "1.85"
 
 [features]
 default = []
-experimental-snapshot-v5 = ["experimental-pipeline"]
+experimental-v5-reader = ["experimental-snapshot-v5"]
+experimental-snapshot-v5 = ["experimental-pipeline", "rusqlite/blob"]
 experimental-cache = ["experimental-pipeline"]
 synthetic-dev = []
 experimental-stdio = ["dep:serde"]
