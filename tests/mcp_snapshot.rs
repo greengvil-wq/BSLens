@@ -357,10 +357,9 @@ fn actual_mcp_offline_tree_parity_status_and_exact_sources_one_reader() {
         old.page.coverage.unassigned_modules
     );
     assert_eq!(
-        metadata["snapshot"]["coverage"]["xml_unverified"]
-            .as_array()
-            .unwrap()
-            .len(),
+        metadata["snapshot"]["coverage"]["xml_unverified_count"]
+            .as_u64()
+            .unwrap() as usize,
         old.page.coverage.unverified_entries
     );
     for (node, old_node) in items.iter().zip(&old.page.items) {
@@ -547,4 +546,123 @@ fn startup_version_profile_checksum_and_mode_conflicts_fail_closed() {
         assert_eq!(out.stderr, b"snapshot_arguments\n");
     }
     assert_eq!(fs::read_dir(&f.stage).unwrap().count(), 0);
+}
+
+#[test]
+fn omitted_arguments_are_empty_but_explicit_wrong_types_are_invalid() {
+    let f = Fixture::new(&[]);
+    let mut p = Peer::start(&f);
+    for name in ["metadata", "tree"] {
+        let absent = p.request("tools/call", json!({"name":name}));
+        let empty = p.call(name, json!({}));
+        assert_eq!(absent["result"]["isError"], false);
+        assert_eq!(absent["result"], empty["result"]);
+        for invalid in [Value::Null, json!(false), json!(7), json!(""), json!([])] {
+            assert_eq!(
+                p.request("tools/call", json!({"name":name,"arguments":invalid}))["error"]["code"],
+                -32602
+            );
+        }
+    }
+    assert_eq!(
+        p.request("tools/call", json!({"name":"source"}))["error"]["code"],
+        -32602
+    );
+    p.finish();
+}
+
+#[test]
+fn generated_large_coverage_is_summarized_and_unknown_fields_never_echoed() {
+    let xml =
+        String::from_utf8(include_bytes!("fixtures/xml221/Configuration.xml").to_vec()).unwrap();
+    let extras = (0..700)
+        .map(|i| format!("<UnverifiedProperty{i:04}/>"))
+        .collect::<String>();
+    let xml = xml.replace("<Synonym/>", &extras);
+    let mut f = Fixture::new(&[
+        ("Configuration.xml", xml.into_bytes()),
+        ("One.bsl", b"x".to_vec()),
+        ("Escape.bsl", vec![b'"'; 20_000]),
+    ]);
+    let db = rusqlite::Connection::open(&f.built.path).unwrap();
+    let raw: String = db
+        .query_row("SELECT coverage_draft FROM metadata", [], |r| r.get(0))
+        .unwrap();
+    assert!(raw.len() > 65_536);
+    let coverage: Value = serde_json::from_str(&raw).unwrap();
+    drop(db);
+    let mut p = Peer::start(&f);
+    let metadata = p.data("metadata", json!({}));
+    let summary = &metadata["snapshot"]["coverage"];
+    assert_eq!(summary["details_omitted"], true);
+    assert_eq!(summary["summary_format"], "allowlist-v1");
+    assert_eq!(
+        summary["xml_unverified_count"],
+        coverage["xml_unverified"].as_array().unwrap().len()
+    );
+    assert_eq!(
+        summary["coverage_sha256"],
+        format!("{:x}", Sha256::digest(coverage.to_string().as_bytes()))
+    );
+    assert!(summary.to_string().len() < 1024);
+    assert!(summary.get("xml_unverified").is_none());
+    assert!(!metadata.to_string().contains("UnverifiedProperty"));
+    assert_eq!(p.data("tree", json!({}))["snapshot"], metadata["snapshot"]);
+    let one = p.data(
+        "source",
+        json!({"path":"One.bsl","start_line":1,"end_line":1}),
+    );
+    assert_eq!(bytes(&one["data"]), b"x");
+    assert_eq!(one["snapshot"], metadata["snapshot"]);
+    let over = p.call(
+        "source",
+        json!({"path":"Escape.bsl","start_line":1,"end_line":1}),
+    );
+    assert_eq!(over["error"]["code"], -32001);
+    assert_eq!(over["error"]["message"], "Response exceeds byte limit");
+    assert!(over.get("result").is_none());
+    p.finish();
+
+    // Forward-compatible/incorrect temporary fields must never become a wire schema.
+    let db = rusqlite::Connection::open(&f.built.path).unwrap();
+    let mut extended = coverage;
+    extended["future_private_details"] = json!("private-marker".repeat(20_000));
+    extended["objects"] = json!("wrong-type-marker".repeat(5_000));
+    extended["parse_counts"]["future_reason"] = json!("unknown-marker".repeat(5_000));
+    let scope = "\u{0001}".repeat(1024); // maximum shared-contract size, worst JSON escaping
+    db.execute(
+        "UPDATE metadata SET coverage_draft=?1,scope_id=?2",
+        rusqlite::params![extended.to_string(), scope],
+    )
+    .unwrap();
+    let id = bslens_core::snapshot_v5::contract::snapshot_id(&db).unwrap();
+    db.execute("UPDATE metadata SET snapshot_id=?1", [&id])
+        .unwrap();
+    drop(db);
+    f.built.snapshot_id = id;
+    f.alter("");
+    let mut p = Peer::start(&f);
+    let metadata = p.data("metadata", json!({}));
+    assert_eq!(metadata["snapshot"]["scope_id"], scope);
+    assert_eq!(metadata["snapshot"]["snapshot_id"], f.built.snapshot_id);
+    assert!(metadata["snapshot"]["coverage"]["objects"].is_null());
+    for needle in [
+        "private-marker",
+        "wrong-type-marker",
+        "unknown-marker",
+        "UnverifiedProperty",
+    ] {
+        assert!(!metadata.to_string().contains(needle));
+    }
+    assert_eq!(p.data("tree", json!({}))["snapshot"], metadata["snapshot"]);
+    assert_eq!(
+        bytes(
+            &p.data(
+                "source",
+                json!({"path":"One.bsl","start_line":1,"end_line":1})
+            )["data"]
+        ),
+        b"x"
+    );
+    p.finish();
 }

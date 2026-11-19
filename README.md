@@ -77,6 +77,12 @@ cargo build --locked --features experimental-snapshot-mcp --bin bslens-mcp
 Staging заранее создаётся с правами 0700 и доверенными родителями; число в примере —
 только синтетический бюджет. Параметры `--repo`/`--commit` с `--snapshot` запрещены.
 Один reader обслуживает всю сессию: read-only `metadata`, `tree`, `source`.
+В `tools/call` отсутствие `arguments` равно `{}` (metadata и корневой tree);
+явные неправильные типы отвергаются. `snapshot.coverage` — ограниченная сводка
+`allowlist-v1`: счётчики, число XML-замечаний и SHA-256 нормализованного полного
+покрытия, с `details_omitted=true`. Селекторы, пути и неизвестные поля покрытия
+не передаются. `scope_id` остаётся точным; общий бюджет контекста учитывает escaping.
+Большой coverage_draft сам по себе не блокирует metadata/tree/короткий source.
 
 Байты `source` находятся в `result.structuredContent.data`: при `encoding=utf-8`
 закодируйте поле `data` как UTF-8; при `encoding=base64` декодируйте стандартный

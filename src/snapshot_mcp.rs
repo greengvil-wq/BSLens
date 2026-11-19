@@ -17,7 +17,7 @@ pub struct SnapshotSession {
 }
 impl SnapshotSession {
     pub fn new(reader: LinuxSnapshotReader) -> Result<Self, Error> {
-        let metadata = reader.info()?;
+        let metadata = wire_metadata(reader.info()?)?;
         Ok(Self {
             transport: Session::new(),
             router: Router { reader, metadata },
@@ -30,6 +30,45 @@ impl SnapshotSession {
     ) -> io::Result<Exit> {
         self.transport.serve_with_tools(input, output, &self.router)
     }
+}
+
+// Fixed field allowlist: never echo coverage selectors, paths, unknown keys or values.
+// Scope identity remains exact (the shared S3 contract bounds it to 1024 UTF-8 bytes).
+fn wire_metadata(info: Value) -> Result<Value, Error> {
+    let bounded_string = |key: &str, cap: usize| -> Result<&str, Error> {
+        info.get(key)
+            .and_then(Value::as_str)
+            .filter(|v| v.len() <= cap)
+            .ok_or(Error::Limit)
+    };
+    let coverage = &info["coverage"];
+    let count = |key: &str| coverage.get(key).and_then(Value::as_u64);
+    let accepted = coverage
+        .get("parse_counts")
+        .and_then(|v| v.get("accepted"))
+        .and_then(Value::as_u64);
+    let unparsed = count("modules")
+        .zip(accepted)
+        .and_then(|(total, n)| total.checked_sub(n));
+    let digest = format!("{:x}", Sha256::digest(coverage.to_string().as_bytes()));
+    let result = json!({
+        "snapshot_id":bounded_string("snapshot_id",74)?,
+        "profile":bounded_string("profile",64)?,
+        "scope_id":bounded_string("scope_id",1024)?,
+        "relations":"not_analyzed","git_provenance":"not_verified","experimental":true,
+        "coverage":{
+            "temporary":true,"summary_format":"allowlist-v1","details_omitted":true,
+            "objects":count("objects"),"modules":count("modules"),"owner_unconfirmed":count("owner_unconfirmed"),
+            "accepted_modules":accepted,"unparsed_modules":unparsed,
+            "xml_unverified_count":coverage.get("xml_unverified").and_then(Value::as_array).map(Vec::len),
+            "coverage_sha256":digest
+        }
+    });
+    // A second fixed bound includes JSON escaping of scope_id; never truncate identity.
+    if result.to_string().len() > 12_288 {
+        return Err(Error::Limit);
+    }
+    Ok(result)
 }
 
 /// Stable, non-sensitive startup refusals. No caller paths or source content in stderr.
@@ -218,10 +257,11 @@ impl ToolRouter for Router {
     }
     fn call(&self, params: &Value) -> Result<Value, RouteError> {
         keys(params, &["name", "arguments", "_meta"])?;
-        let args = params
-            .get("arguments")
-            .filter(|v| v.is_object())
-            .ok_or(RouteError::InvalidArgs)?;
+        let empty = json!({});
+        let args = params.get("arguments").unwrap_or(&empty);
+        if !args.is_object() {
+            return Err(RouteError::InvalidArgs);
+        }
         match text(params, "name", 64)? {
             "metadata" => {
                 keys(args, &[])?;
