@@ -77,3 +77,10 @@ mod linux_v5_staging;
     target_arch = "x86_64"
 ))]
 pub mod snapshot_v5;
+
+#[cfg(all(
+    feature = "experimental-snapshot-mcp",
+    target_os = "linux",
+    target_arch = "x86_64"
+))]
+pub mod snapshot_mcp;
