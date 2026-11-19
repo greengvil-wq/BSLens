@@ -1,5 +1,4 @@
 //! Linux S4: bounded descriptor copy before SQLite. No parser or facts hash here.
-#![allow(dead_code)] // Private S4 integration boundary; removed when S3 is connected.
 use sha2::{Digest, Sha256};
 use std::{
     ffi::CString,
@@ -147,7 +146,7 @@ fn identity(path: &Path, expected: Option<&str>) -> Result<(String, String)> {
         .strip_suffix(".sqlite")
         .and_then(|n| n.rsplit_once('.'))
         .ok_or(Error::Name)?;
-    if !id.starts_with("bslens-v5-") || id.len() <= 10 || !hex(sha) {
+    if !id.strip_prefix("bslens-v5-").is_some_and(hex) || !hex(sha) {
         return Err(Error::Name);
     }
     if expected.is_some_and(|e| !hex(e) || e != sha) {
@@ -192,31 +191,8 @@ fn stage_with(
 ) -> Result<StagedSnapshot> {
     let (snapshot_id, expected_sha) = identity(input_path, expected)?;
     let mut source = input(input_path, limit)?;
-    let directory = staging_directory(staging)?;
-    let (name, mut target) = loop {
-        let name = format!(
-            "bslens-v5-reader-{}-{}.sqlite",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        );
-        match at(&directory, name.as_ref(), WRONLY | CREAT | EXCL) {
-            Ok(f) => break (name, f),
-            Err(Error::Io(e)) if e.kind() == io::ErrorKind::AlreadyExists => continue,
-            Err(Error::Io(source)) => {
-                return Err(Error::Staging {
-                    directory: staging.to_owned(),
-                    source,
-                })
-            }
-            Err(e) => return Err(e),
-        }
-    };
-    let copy = StagedSnapshot {
-        directory,
-        path: staging.join(&name),
-        name: CString::new(name).map_err(|_| Error::Name)?,
-        snapshot_id,
-    };
+    let (mut copy, mut target) = temporary(staging)?;
+    copy.snapshot_id = snapshot_id;
     let result = (|| {
         let meta = target.metadata()?;
         if meta.mode() & 0o7777 != 0o600 || meta.uid() != unsafe { geteuid() } || meta.nlink() != 1
@@ -252,6 +228,48 @@ fn stage_with(
     Ok(copy)
 }
 
+/// Exclusive owner-only scratch, removed by its guard after all handles close.
+pub(crate) fn temporary(staging: &Path) -> Result<(StagedSnapshot, File)> {
+    let directory = staging_directory(staging)?;
+    let (name, target) = loop {
+        let name = format!(
+            "bslens-v5-reader-{}-{}.sqlite",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        );
+        match at(&directory, name.as_ref(), WRONLY | CREAT | EXCL) {
+            Ok(f) => break (name, f),
+            Err(Error::Io(e)) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(Error::Io(source)) => {
+                return Err(Error::Staging {
+                    directory: staging.to_owned(),
+                    source,
+                })
+            }
+            Err(e) => return Err(e),
+        }
+    };
+    let copy = StagedSnapshot {
+        directory,
+        path: staging.join(&name),
+        name: CString::new(name).map_err(|_| Error::Name)?,
+        snapshot_id: String::new(),
+    };
+    let checked = target.metadata().map_err(Error::from).and_then(|meta| {
+        if meta.mode() & 0o7777 != 0o600 || meta.uid() != unsafe { geteuid() } || meta.nlink() != 1
+        {
+            Err(Error::Permissions)
+        } else {
+            Ok(())
+        }
+    });
+    if let Err(error) = checked {
+        drop(target);
+        return Err(error);
+    }
+    Ok((copy, target))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,7 +296,7 @@ mod tests {
         fn file(&self, bytes: &[u8]) -> PathBuf {
             let path = self
                 .root
-                .join(format!("bslens-v5-test.{:x}.sqlite", Sha256::digest(bytes)));
+                .join(format!("bslens-v5-0000000000000000000000000000000000000000000000000000000000000000.{:x}.sqlite", Sha256::digest(bytes)));
             fs::write(&path, bytes).unwrap();
             path
         }
@@ -316,7 +334,10 @@ mod tests {
         fs::write(&p, b"replacement").unwrap();
         assert_eq!(fs::read(&a.path).unwrap(), b"original");
         assert_eq!(fs::metadata(&a.path).unwrap().mode() & 0o7777, 0o600);
-        assert_eq!(a.snapshot_id, "bslens-v5-test");
+        assert_eq!(
+            a.snapshot_id,
+            "bslens-v5-0000000000000000000000000000000000000000000000000000000000000000"
+        );
         assert_eq!(f.count(), 2);
         drop(a);
         assert_eq!(f.count(), 1);

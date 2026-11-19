@@ -1,15 +1,16 @@
-//! S4 reader integration boundary. Kept private until tested against the S3 builder.
-#![allow(dead_code)] // Private S4 integration boundary; removed when S3 is connected.
+//! Experimental Linux v5 reader. Offline verification does not attest Git provenance.
+pub use crate::linux_v5_staging::Error as StagingError;
 use crate::linux_v5_staging::{self, StagedSnapshot};
+use crate::snapshot_v5::{self, contract};
 use rusqlite::{Connection, DatabaseName, OpenFlags};
 use std::{
-    io::{Read, Seek, SeekFrom},
+    io::{Read, Seek, SeekFrom, Write},
     path::Path,
 };
 
 #[derive(Debug)]
-pub(crate) enum Error {
-    Staging(linux_v5_staging::Error),
+pub enum Error {
+    Staging(StagingError),
     Sqlite(rusqlite::Error),
     Io(std::io::Error),
     Version,
@@ -21,6 +22,8 @@ pub(crate) enum Error {
     Range,
     Limit,
     Contract(String),
+    SourceDigest,
+    VerifyFacts,
 }
 impl From<rusqlite::Error> for Error {
     fn from(e: rusqlite::Error) -> Self {
@@ -32,99 +35,41 @@ impl From<std::io::Error> for Error {
         Self::Io(e)
     }
 }
+impl From<snapshot_v5::Error> for Error {
+    fn from(e: snapshot_v5::Error) -> Self {
+        match e {
+            snapshot_v5::Error::Contract("user_version") => Self::Version,
+            snapshot_v5::Error::Contract("schema") => Self::Schema,
+            snapshot_v5::Error::Contract("schema_limit") => Self::Limit,
+            snapshot_v5::Error::Contract("profile" | "incompatible_profile") => Self::Profile,
+            other => Self::Contract(other.to_string()),
+        }
+    }
+}
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "v5 reader: {self:?}")
+    }
+}
+impl std::error::Error for Error {}
 type Result<T> = std::result::Result<T, Error>;
 
-/// S3 owns these implementations. No alternative canonical hash or parser is allowed here.
-/// Open-time checks must stream facts and never collect all saved source bytes.
-pub(crate) trait SharedFacts {
-    fn facts_sha256(&self, connection: &Connection) -> std::result::Result<String, String>;
-    fn compatible_scope(&self, connection: &Connection) -> std::result::Result<(), String>;
-    /// Recompute sources' SHA, XML ownership, BSL methods and line index from saved bytes.
-    /// This does not attest Git provenance.
-    fn verify_saved_sources(&self, connection: &Connection) -> std::result::Result<(), String>;
-}
-
-pub(crate) struct LinuxSnapshotReader {
+pub struct LinuxSnapshotReader {
     // Field drop order is deliberate: close SQLite before unlinking the copy.
     connection: Connection,
     _copy: StagedSnapshot,
 }
 
-const REGISTRY_SQL: &str =
-    "SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name COLLATE BINARY";
-
 fn check_schema(connection: &Connection) -> Result<()> {
-    if connection.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? != 5 {
-        return Err(Error::Version);
-    }
-    // Only this fixed, compiled-in schema is materialized in Rust.
-    let reference = Connection::open_in_memory()?;
-    reference.execute_batch(include_str!("../spikes/linux-v5/schema.sql"))?;
-    let mut expected_query = reference.prepare(REGISTRY_SQL)?;
-    let expected = expected_query
-        .query_map([], |r| {
-            Ok([
-                r.get::<_, Option<String>>(0)?,
-                r.get(1)?,
-                r.get(2)?,
-                r.get(3)?,
-            ])
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    let caps: Vec<usize> = (0..4)
-        .map(|i| {
-            expected
-                .iter()
-                .map(|r| r[i].as_ref().map_or(0, String::len))
-                .max()
-                .unwrap_or(0)
-        })
-        .collect();
-    // No sorting or text values until the complete registry's count and byte lengths
-    // have passed. LIMIT includes one overflow row; no untrusted Vec<String> exists.
-    let mut lengths = connection.prepare("SELECT length(CAST(type AS BLOB)),length(CAST(name AS BLOB)),length(CAST(tbl_name AS BLOB)),coalesce(length(CAST(sql AS BLOB)),0) FROM sqlite_schema LIMIT ?1")?;
-    let mut rows = lengths.query([expected.len() as i64 + 1])?;
-    let mut count = 0;
-    while let Some(row) = rows.next()? {
-        if count == expected.len() {
-            return Err(Error::Limit);
-        }
-        for (i, cap) in caps.iter().enumerate() {
-            let size: i64 = row.get(i)?;
-            if size < 0 || size as u64 > *cap as u64 {
-                return Err(Error::Limit);
-            }
-        }
-        count += 1;
-    }
-    if count != expected.len() {
-        return Err(Error::Schema);
-    }
-    let mut actual_query = connection.prepare(REGISTRY_SQL)?;
-    let mut actual = actual_query.query([])?;
-    for expected_row in &expected {
-        let row = actual.next()?.ok_or(Error::Schema)?;
-        for (i, expected_value) in expected_row.iter().enumerate() {
-            use rusqlite::types::ValueRef;
-            match (row.get_ref(i)?, expected_value.as_deref()) {
-                (ValueRef::Null, None) => {}
-                (ValueRef::Text(bytes), Some(text)) if bytes == text.as_bytes() => {}
-                _ => return Err(Error::Schema),
-            }
-        }
-    }
-    if actual.next()?.is_some() {
-        return Err(Error::Schema);
-    }
-    Ok(())
+    contract::validate_schema(connection).map_err(Error::from)
 }
 
 /// Trusted caller policy; text bytes are UTF-8 payload bytes across all five fields.
 /// Row count independently bounds per-node/container overhead. No partial response.
 #[derive(Clone, Copy)]
-pub(crate) struct TreeLimits {
-    pub(crate) rows: usize,
-    pub(crate) bytes: usize,
+pub struct TreeLimits {
+    pub rows: usize,
+    pub bytes: usize,
 }
 
 fn read_tree(
@@ -195,12 +140,11 @@ fn read_tree(
     Ok(nodes)
 }
 impl LinuxSnapshotReader {
-    pub(crate) fn open(
+    pub fn open(
         path: &Path,
         staging: &Path,
         expected: Option<&str>,
         max_bytes: u64,
-        shared: &impl SharedFacts,
     ) -> Result<Self> {
         let copy =
             linux_v5_staging::stage(path, staging, expected, max_bytes).map_err(Error::Staging)?;
@@ -210,17 +154,24 @@ impl LinuxSnapshotReader {
             OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
         )?;
         connection.execute_batch("PRAGMA query_only=ON; PRAGMA trusted_schema=OFF;")?;
+        connection.execute_batch("BEGIN;")?;
         check_schema(&connection)?;
+        // Bound text metadata before shared identity/profile JSON functions allocate it.
+        let mut sizes = connection.prepare("SELECT length(CAST(core_version AS BLOB))+length(CAST(adapter_version AS BLOB))+length(CAST(xml_version AS BLOB))+length(CAST(lexical_version AS BLOB))+length(CAST(scope_id AS BLOB))+length(CAST(coverage_draft AS BLOB))+length(CAST(build_parameters AS BLOB))+length(CAST(snapshot_id AS BLOB))+length(CAST(profile AS BLOB))+coalesce(length(CAST(facts_sha256 AS BLOB)),0) FROM metadata")?;
+        if sizes.query_row([], |r| r.get::<_, i64>(0))? > 1_048_576 {
+            return Err(Error::Limit);
+        }
+        drop(sizes);
         let (version,profile,id,facts):(i64,String,String,Option<String>)=connection.query_row(
             "SELECT schema_version,profile,snapshot_id,facts_sha256 FROM metadata WHERE singleton=1",[],
             |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)))?;
         if version != 5 {
             return Err(Error::Version);
         }
-        if profile != "linux-v5-spike-xml221-bsl-r09" {
+        if profile != contract::PROFILE {
             return Err(Error::Profile);
         }
-        if id != copy.snapshot_id {
+        if id != copy.snapshot_id || contract::snapshot_id(&connection)? != id {
             return Err(Error::Identity);
         }
         if connection
@@ -231,26 +182,18 @@ impl LinuxSnapshotReader {
         {
             return Err(Error::ForeignKey);
         }
-        let actual = shared.facts_sha256(&connection).map_err(Error::Contract)?;
+        let actual = contract::facts_sha256(&connection)?;
         if facts.as_deref() != Some(actual.as_str()) {
             return Err(Error::Facts);
         }
-        shared
-            .compatible_scope(&connection)
-            .map_err(Error::Contract)?;
+        contract::compatible_scope(&connection)?;
         Ok(Self {
             connection,
             _copy: copy,
         })
     }
 
-    pub(crate) fn source(
-        &self,
-        path: &str,
-        start: i64,
-        end: i64,
-        max_bytes: u64,
-    ) -> Result<Vec<u8>> {
+    pub fn source(&self, path: &str, start: i64, end: i64, max_bytes: u64) -> Result<Vec<u8>> {
         if start < 1 || end < start {
             return Err(Error::Range);
         }
@@ -279,7 +222,7 @@ impl LinuxSnapshotReader {
     }
 
     /// One SQL branch, including parse status and rejection reason; no BSL parsing.
-    pub(crate) fn tree(
+    pub fn tree(
         &self,
         level: &str,
         parent_id: Option<i64>,
@@ -297,11 +240,125 @@ impl LinuxSnapshotReader {
         )
     }
 
-    pub(crate) fn verify(&self, shared: &impl SharedFacts) -> Result<()> {
-        shared
-            .verify_saved_sources(&self.connection)
-            .map_err(Error::Contract)
+    /// Returns scope and temporary coverage; no Git-origin claim.
+    pub fn info(&self) -> Result<serde_json::Value> {
+        let (id, scope, coverage): (String, String, String) = self.connection.query_row(
+            "SELECT snapshot_id,scope_id,coverage_draft FROM metadata WHERE singleton=1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )?;
+        Ok(
+            serde_json::json!({"snapshot_id":id,"profile":contract::PROFILE,"scope_id":scope,"coverage":serde_json::from_str::<serde_json::Value>(&coverage).map_err(|e|Error::Contract(e.to_string()))?,"relations":"not_analyzed","git_provenance":"not_verified","experimental":true}),
+        )
     }
+
+    /// Explicit offline re-derivation. Limits are caller policy, never trusted from metadata.
+    pub fn verify(&self, limits: snapshot_v5::Limits) -> Result<()> {
+        verify_saved_sources(
+            &self.connection,
+            self._copy.path.parent().ok_or(Error::Range)?,
+            limits,
+        )
+    }
+}
+
+fn verify_saved_sources(
+    original: &Connection,
+    staging: &Path,
+    limits: snapshot_v5::Limits,
+) -> Result<()> {
+    use sha1::Sha1;
+    use sha2::{Digest, Sha256};
+    let (count, total): (u64, u64) = original.query_row(
+        "SELECT count(*),coalesce(sum(length(content)),0) FROM sources",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    if count > limits.source_count || total > limits.total_source_bytes {
+        return Err(Error::Limit);
+    }
+    let (scratch_guard, handle) = linux_v5_staging::temporary(staging).map_err(Error::Staging)?;
+    drop(handle);
+    // Declaration order ensures transaction/connection close before the RAII unlink.
+    let mut scratch =
+        Connection::open_with_flags(&scratch_guard.path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    let pages = (limits.sqlite_bytes / 4096).min(4_294_967_294);
+    if pages == 0 {
+        return Err(Error::Limit);
+    }
+    scratch.pragma_update(None, "page_size", 4096)?;
+    scratch.pragma_update(None, "max_page_count", pages)?;
+    scratch.execute_batch(contract::SCHEMA)?;
+    scratch.execute_batch("PRAGMA trusted_schema=OFF")?;
+    let tx = scratch.transaction()?;
+    let mut query=original.prepare("SELECT rowid,length(content),length(CAST(path AS BLOB)),length(CAST(kind AS BLOB)),length(CAST(mode AS BLOB)),length(CAST(blob_oid AS BLOB)),length(CAST(sha256 AS BLOB)) FROM sources ORDER BY path COLLATE BINARY")?;
+    let mut rows = query.query([])?;
+    let mut buffer = [0u8; 64 * 1024];
+    while let Some(row) = rows.next()? {
+        let rowid: i64 = row.get(0)?;
+        let length: u64 = row.get(1)?;
+        if length > limits.source_bytes || length > i32::MAX as u64 {
+            return Err(Error::Limit);
+        }
+        for (i, cap) in [(2, 16_384u64), (3, 3), (4, 6), (5, 64), (6, 64)] {
+            if row.get::<_, u64>(i)? > cap {
+                return Err(Error::Limit);
+            }
+        }
+        let (path, kind, mode, oid, sha): (String, String, String, String, String) = original
+            .query_row(
+                "SELECT path,kind,mode,blob_oid,sha256 FROM sources WHERE rowid=?1",
+                [rowid],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+            )?;
+        if ![40, 64].contains(&oid.len()) {
+            return Err(Error::SourceDigest);
+        }
+        tx.execute("INSERT INTO sources(path,kind,mode,blob_oid,sha256,content) VALUES (?1,?2,?3,?4,?5,zeroblob(?6))",rusqlite::params![path,kind,mode,oid,sha,length])?;
+        let mut input =
+            original.blob_open(DatabaseName::Main, "sources", "content", rowid, true)?;
+        let mut output = tx.blob_open(
+            DatabaseName::Main,
+            "sources",
+            "content",
+            tx.last_insert_rowid(),
+            false,
+        )?;
+        let mut content_hash = Sha256::new();
+        let mut git_sha1 = Sha1::new();
+        let mut git_sha256 = Sha256::new();
+        let header = format!("blob {length}\0");
+        git_sha1.update(header.as_bytes());
+        git_sha256.update(header.as_bytes());
+        loop {
+            let n = input.read(&mut buffer)?;
+            if n == 0 {
+                break;
+            }
+            content_hash.update(&buffer[..n]);
+            git_sha1.update(&buffer[..n]);
+            git_sha256.update(&buffer[..n]);
+            output.write_all(&buffer[..n])?;
+        }
+        let actual_oid = if oid.len() == 40 {
+            format!("{:x}", git_sha1.finalize())
+        } else {
+            format!("{:x}", git_sha256.finalize())
+        };
+        if format!("{:x}", content_hash.finalize()) != sha || actual_oid != oid {
+            return Err(Error::SourceDigest);
+        }
+    }
+    // Single producer/parser shared with S3. Its own R09 XML limits also apply.
+    snapshot_v5::derive_facts(&tx)?;
+    if contract::facts_sha256(&tx)? != contract::facts_sha256(original)? {
+        return Err(Error::VerifyFacts);
+    }
+    // No need to publish or commit disposable verification results.
+    drop(tx);
+    scratch.close().map_err(|(_, e)| Error::Sqlite(e))?;
+    drop(scratch_guard);
+    Ok(())
 }
 
 #[cfg(test)]
@@ -351,7 +408,7 @@ mod tests {
         .unwrap();
         drop(db);
         let named = root.join(format!(
-            "bslens-v5-test.{:x}.sqlite",
+            "bslens-v5-0000000000000000000000000000000000000000000000000000000000000000.{:x}.sqlite",
             Sha256::digest(fs::read(&raw).unwrap())
         ));
         fs::rename(&raw, &named).unwrap();
@@ -469,10 +526,10 @@ mod tests {
 }
 
 #[derive(Debug)]
-pub(crate) struct TreeNode {
-    pub(crate) node_type: String,
-    pub(crate) key: String,
-    pub(crate) name: String,
-    pub(crate) status: Option<String>,
-    pub(crate) reason: Option<String>,
+pub struct TreeNode {
+    pub node_type: String,
+    pub key: String,
+    pub name: String,
+    pub status: Option<String>,
+    pub reason: Option<String>,
 }

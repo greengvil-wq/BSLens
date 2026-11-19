@@ -474,3 +474,295 @@ fn source_line_facts_cover_invalid_utf8_and_empty_bsl() {
         0
     );
 }
+
+// S4 integration uses the real S3 builder, exclusively on synthetic inputs above.
+use bslens_core::linux_v5_reader::{
+    Error as ReaderError, LinuxSnapshotReader, StagingError, TreeLimits,
+};
+fn staging(f: &Fixture) -> PathBuf {
+    let path = f.root.join("staging");
+    fs::create_dir(&path).unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
+    path
+}
+fn mutate_copy(f: &Fixture, original: &Path, sql: &str, rehash: bool, reidentify: bool) -> PathBuf {
+    let path = f.root.join("edit.sqlite");
+    fs::copy(original, &path).unwrap();
+    let db = Connection::open(&path).unwrap();
+    db.execute_batch(sql).unwrap();
+    if rehash {
+        let facts = contract::facts_sha256(&db).unwrap();
+        db.execute("UPDATE metadata SET facts_sha256=?1", [facts])
+            .unwrap();
+    }
+    if reidentify {
+        let id = contract::snapshot_id(&db).unwrap();
+        db.execute("UPDATE metadata SET snapshot_id=?1", [id])
+            .unwrap();
+    }
+    let id: String = db
+        .query_row("SELECT snapshot_id FROM metadata", [], |r| r.get(0))
+        .unwrap();
+    drop(db);
+    let renamed = f.root.join(format!("{id}.{}.sqlite", sha(&path)));
+    fs::rename(path, &renamed).unwrap();
+    renamed
+}
+
+#[test]
+fn s4_build_open_tree_source_verify_without_repository_or_git() {
+    let f = Fixture::new();
+    let built = f.build();
+    let stage = staging(&f);
+    fs::remove_dir_all(&f.repo).unwrap();
+    let a = LinuxSnapshotReader::open(
+        &built.path,
+        &stage,
+        Some(&built.file_sha256),
+        limits().sqlite_bytes,
+    )
+    .unwrap();
+    let b = LinuxSnapshotReader::open(&built.path, &stage, None, limits().sqlite_bytes).unwrap();
+    assert_eq!(fs::read_dir(&stage).unwrap().count(), 2);
+    assert_eq!(
+        a.source(UNPARSED, 2, 3, 1000).unwrap(),
+        "#Область\r\nПоследняяСтрока".as_bytes()
+    );
+    let nodes = a
+        .tree(
+            "configuration",
+            Some(1),
+            None,
+            None,
+            TreeLimits {
+                rows: 100,
+                bytes: 10000,
+            },
+        )
+        .unwrap();
+    assert!(nodes
+        .iter()
+        .any(|n| n.node_type == "kind" && n.name == "Catalog"));
+    assert!(nodes.iter().any(|n| n.node_type == "unconfirmed"));
+    assert_eq!(a.info().unwrap()["git_provenance"], "not_verified");
+    a.verify(limits()).unwrap();
+    assert_eq!(fs::read_dir(&stage).unwrap().count(), 2);
+    drop(a);
+    assert_eq!(fs::read_dir(&stage).unwrap().count(), 1);
+    b.verify(limits()).unwrap();
+    drop(b);
+    assert_eq!(fs::read_dir(&stage).unwrap().count(), 0);
+
+    let cli = |command: &str, extra: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_bslens-v5"))
+            .args([
+                command,
+                built.path.to_str().unwrap(),
+                "--staging-dir",
+                stage.to_str().unwrap(),
+                "--max-sqlite-bytes",
+                "2000000",
+            ])
+            .args(extra)
+            .env("PATH", "/no-git-in-offline-reader")
+            .output()
+            .unwrap()
+    };
+    for (command, extra) in [
+        ("open", vec![]),
+        (
+            "tree",
+            vec![
+                "--level",
+                "configuration",
+                "--parent-id",
+                "1",
+                "--max-rows",
+                "100",
+                "--max-bytes",
+                "10000",
+            ],
+        ),
+        (
+            "verify",
+            vec![
+                "--max-sources",
+                "100",
+                "--max-source-bytes",
+                "1000000",
+                "--max-total-bytes",
+                "4000000",
+                "--max-scratch-bytes",
+                "2000000",
+            ],
+        ),
+    ] {
+        let out = cli(command, &extra);
+        assert!(
+            out.status.success(),
+            "{command}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let _: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    }
+    let out = cli(
+        "source",
+        &[
+            "--path",
+            UNPARSED,
+            "--start-line",
+            "2",
+            "--end-line",
+            "3",
+            "--max-bytes",
+            "1000",
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(out.stdout, "#Область\r\nПоследняяСтрока".as_bytes());
+    assert_eq!(fs::read_dir(&stage).unwrap().count(), 0);
+}
+
+#[test]
+fn s4_self_consistent_wrong_fact_is_only_rejected_by_offline_verify() {
+    let f = Fixture::new();
+    let built = f.build();
+    let stage = staging(&f);
+    let path = mutate_copy(
+        &f,
+        &built.path,
+        "UPDATE methods SET byte_start=byte_start+1 WHERE start_line=1",
+        true,
+        false,
+    );
+    let reader =
+        LinuxSnapshotReader::open(&path, &stage, Some(&sha(&path)), limits().sqlite_bytes).unwrap();
+    assert!(matches!(
+        reader.verify(limits()),
+        Err(ReaderError::VerifyFacts)
+    ));
+    assert_eq!(fs::read_dir(&stage).unwrap().count(), 1);
+    drop(reader);
+    assert_eq!(fs::read_dir(&stage).unwrap().count(), 0);
+}
+
+#[test]
+fn s4_profile_id_fk_facts_and_metadata_limits_fail_closed() {
+    let f = Fixture::new();
+    let built = f.build();
+    let stage = staging(&f);
+    for (sql, expected) in [
+        (
+            "PRAGMA ignore_check_constraints=ON;UPDATE metadata SET profile='unknown'",
+            "profile",
+        ),
+        (
+            "UPDATE metadata SET source_id='changed-with-stale-id'",
+            "id",
+        ),
+        (
+            "PRAGMA foreign_keys=OFF;UPDATE modules SET owner_id=999",
+            "fk",
+        ),
+        (
+            "UPDATE methods SET name='Changed' WHERE start_line=1",
+            "facts",
+        ),
+        (
+            "UPDATE metadata SET scope_id=printf('%.*c',1100000,'a')",
+            "limit",
+        ),
+    ] {
+        let path = mutate_copy(&f, &built.path, sql, false, false);
+        let error = LinuxSnapshotReader::open(&path, &stage, None, 4_000_000)
+            .err()
+            .unwrap();
+        assert!(
+            matches!(
+                (&error, expected),
+                (ReaderError::Profile, "profile")
+                    | (ReaderError::Identity, "id")
+                    | (ReaderError::ForeignKey, "fk")
+                    | (ReaderError::Facts, "facts")
+                    | (ReaderError::Limit, "limit")
+            ),
+            "{expected}: {error:?}"
+        );
+        assert_eq!(fs::read_dir(&stage).unwrap().count(), 0);
+    }
+    let path = mutate_copy(
+        &f,
+        &built.path,
+        "UPDATE metadata SET scope_id='other-compatible-scope'",
+        false,
+        true,
+    );
+    let reader = LinuxSnapshotReader::open(&path, &stage, None, limits().sqlite_bytes).unwrap();
+    assert_eq!(reader.info().unwrap()["scope_id"], "other-compatible-scope");
+    reader.verify(limits()).unwrap();
+}
+
+#[test]
+fn s4_sha_failure_precedes_sqlite_and_snapshot_name_must_match() {
+    let f = Fixture::new();
+    let built = f.build();
+    let stage = staging(&f);
+    let invalid = f.root.join(built.path.file_name().unwrap());
+    fs::write(&invalid, b"not a sqlite file").unwrap();
+    assert!(matches!(
+        LinuxSnapshotReader::open(&invalid, &stage, None, limits().sqlite_bytes),
+        Err(ReaderError::Staging(StagingError::Digest))
+    ));
+    assert!(matches!(
+        LinuxSnapshotReader::open(
+            &built.path,
+            &stage,
+            Some(&"0".repeat(64)),
+            limits().sqlite_bytes
+        ),
+        Err(ReaderError::Staging(StagingError::Digest))
+    ));
+    let different = f.root.join(format!(
+        "bslens-v5-{}.{}.sqlite",
+        "0".repeat(64),
+        built.file_sha256
+    ));
+    fs::copy(&built.path, &different).unwrap();
+    assert!(matches!(
+        LinuxSnapshotReader::open(&different, &stage, None, limits().sqlite_bytes),
+        Err(ReaderError::Identity)
+    ));
+    assert_eq!(fs::read_dir(&stage).unwrap().count(), 0);
+}
+
+#[test]
+fn s4_verify_hashes_sources_and_respects_trusted_scratch_limits() {
+    let f = Fixture::new();
+    let built = f.build();
+    let stage = staging(&f);
+    for sql in [
+        "UPDATE sources SET sha256=printf('%064d',0)",
+        "UPDATE sources SET blob_oid=printf('%040d',0)",
+    ] {
+        let path = mutate_copy(&f, &built.path, sql, false, false);
+        let reader = LinuxSnapshotReader::open(&path, &stage, None, limits().sqlite_bytes).unwrap();
+        assert!(matches!(
+            reader.verify(limits()),
+            Err(ReaderError::SourceDigest)
+        ));
+        assert_eq!(fs::read_dir(&stage).unwrap().count(), 1);
+    }
+    let reader =
+        LinuxSnapshotReader::open(&built.path, &stage, None, limits().sqlite_bytes).unwrap();
+    let mut cap = limits();
+    cap.source_bytes = 1;
+    assert!(matches!(reader.verify(cap), Err(ReaderError::Limit)));
+    let mut cap = limits();
+    cap.sqlite_bytes = 4096;
+    assert!(reader.verify(cap).is_err());
+    assert_eq!(fs::read_dir(&stage).unwrap().count(), 1);
+}

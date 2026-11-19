@@ -85,23 +85,79 @@ pub fn snapshot_id(db: &Connection) -> Result<String> {
     Ok(format!("bslens-v5-{}", hex(&h.finalize())))
 }
 
-fn catalog(db: &Connection) -> Result<Vec<(String, String, String, Option<String>)>> {
-    Ok(db
-        .prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name")?
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
-        .collect::<std::result::Result<_, _>>()?)
+const REGISTRY_SQL: &str =
+    "SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name COLLATE BINARY";
+
+pub fn validate_schema(connection: &Connection) -> Result<()> {
+    if connection.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? != 5 {
+        return Err(Error::Contract("user_version"));
+    }
+    // Only this fixed, compiled-in schema is materialized in Rust.
+    let reference = Connection::open_in_memory()?;
+    reference.execute_batch(SCHEMA)?;
+    let mut expected_query = reference.prepare(REGISTRY_SQL)?;
+    let expected = expected_query
+        .query_map([], |r| {
+            Ok([
+                r.get::<_, Option<String>>(0)?,
+                r.get(1)?,
+                r.get(2)?,
+                r.get(3)?,
+            ])
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let caps: Vec<usize> = (0..4)
+        .map(|i| {
+            expected
+                .iter()
+                .map(|r| r[i].as_ref().map_or(0, String::len))
+                .max()
+                .unwrap_or(0)
+        })
+        .collect();
+    // No sorting or text values until the complete registry's count and byte lengths
+    // have passed. LIMIT includes one overflow row; no untrusted Vec<String> exists.
+    let mut lengths = connection.prepare("SELECT length(CAST(type AS BLOB)),length(CAST(name AS BLOB)),length(CAST(tbl_name AS BLOB)),coalesce(length(CAST(sql AS BLOB)),0) FROM sqlite_schema LIMIT ?1")?;
+    let mut rows = lengths.query([expected.len() as i64 + 1])?;
+    let mut count = 0;
+    while let Some(row) = rows.next()? {
+        if count == expected.len() {
+            return Err(Error::Contract("schema_limit"));
+        }
+        for (i, cap) in caps.iter().enumerate() {
+            let size: i64 = row.get(i)?;
+            if size < 0 || size as u64 > *cap as u64 {
+                return Err(Error::Contract("schema_limit"));
+            }
+        }
+        count += 1;
+    }
+    if count != expected.len() {
+        return Err(Error::Contract("schema"));
+    }
+    let mut actual_query = connection.prepare(REGISTRY_SQL)?;
+    let mut actual = actual_query.query([])?;
+    for expected_row in &expected {
+        let row = actual.next()?.ok_or(Error::Contract("schema"))?;
+        for (i, expected_value) in expected_row.iter().enumerate() {
+            use rusqlite::types::ValueRef;
+            match (row.get_ref(i)?, expected_value.as_deref()) {
+                (ValueRef::Null, None) => {}
+                (ValueRef::Text(bytes), Some(text)) if bytes == text.as_bytes() => {}
+                _ => return Err(Error::Contract("schema")),
+            }
+        }
+    }
+    if actual.next()?.is_some() {
+        return Err(Error::Contract("schema"));
+    }
+    Ok(())
 }
+
 /// Точное определение схемы S2, user_version, единственная metadata и известный профиль.
 /// Не открывает путь, не пересчитывает BSL и не создаёт ValidatedSnapshot.
 pub fn validate_schema_profile(db: &Connection) -> Result<()> {
-    if db.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))? != 5 {
-        return Err(Error::Contract("user_version"));
-    }
-    let reference = Connection::open_in_memory()?;
-    reference.execute_batch(SCHEMA)?;
-    if catalog(db)? != catalog(&reference)? {
-        return Err(Error::Contract("schema"));
-    }
+    validate_schema(db)?;
     let row: (i64, i64, String, String) = db.query_row(
         "SELECT count(*),schema_version,profile,relations FROM metadata",
         [],
