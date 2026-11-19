@@ -8,7 +8,7 @@ fn main() {
 }
 #[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
 fn main() {
-    eprintln!("v5: поддерживается только Linux x86_64");
+    eprintln!("v5: поддерживается только Linux x86_64; эта платформа не поддерживается");
     std::process::exit(1);
 }
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]

@@ -1,4 +1,5 @@
-//! Экспериментальный сборщик Linux v5. Не читатель и не production capability.
+//! Экспериментальный сборщик Linux x86_64 v5. Не читатель и не production capability.
+#![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 pub mod contract;
 mod publish;
 use crate::{
