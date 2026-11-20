@@ -190,8 +190,27 @@ fn path_check(path: &str) -> Result<()> {
     }
     Ok(())
 }
+#[derive(Clone, Copy)]
+struct ParseLimits {
+    bytes: usize,
+    events: usize,
+    depth: usize,
+    nodes: u32,
+}
 fn parse<'a>(raw: &'a [u8], path: &str) -> Result<Document<'a>> {
-    if raw.len() > MAX_XML_BYTES {
+    parse_bounded(
+        raw,
+        path,
+        ParseLimits {
+            bytes: MAX_XML_BYTES,
+            events: MAX_EVENTS,
+            depth: MAX_DEPTH,
+            nodes: MAX_NODES,
+        },
+    )
+}
+fn parse_bounded<'a>(raw: &'a [u8], path: &str, limits: ParseLimits) -> Result<Document<'a>> {
+    if raw.len() > limits.bytes {
         return Err(error(Code::Limit, path));
     }
     let text = std::str::from_utf8(raw).map_err(|_| error(Code::Utf8, path))?;
@@ -207,7 +226,7 @@ fn parse<'a>(raw: &'a [u8], path: &str) -> Result<Document<'a>> {
             .read_event()
             .map_err(|_| error(Code::Malformed, path))?;
         count += 1;
-        if count > MAX_EVENTS {
+        if count > limits.events {
             return Err(error(Code::Limit, path));
         }
         match event {
@@ -223,12 +242,12 @@ fn parse<'a>(raw: &'a [u8], path: &str) -> Result<Document<'a>> {
             }
             Event::Start(_) => {
                 depth += 1;
-                if depth > MAX_DEPTH {
+                if depth > limits.depth {
                     return Err(error(Code::Limit, path));
                 }
             }
             Event::Empty(_) => {
-                if depth + 1 > MAX_DEPTH {
+                if depth + 1 > limits.depth {
                     return Err(error(Code::Limit, path));
                 }
             }
@@ -245,7 +264,7 @@ fn parse<'a>(raw: &'a [u8], path: &str) -> Result<Document<'a>> {
         text,
         ParsingOptions {
             allow_dtd: false,
-            nodes_limit: MAX_NODES,
+            nodes_limit: limits.nodes,
         },
     )
     .map_err(|e| {
@@ -481,3 +500,7 @@ impl State<'_, '_> {
         Ok(())
     }
 }
+
+/// Separate file frontend; legacy inspect retains its contract.
+#[cfg(feature = "experimental-v5-xml221")]
+pub mod file;

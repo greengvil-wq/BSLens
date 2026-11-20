@@ -7,6 +7,7 @@ rust-version = "1.85"
 [features]
 default = []
 experimental-v5-ingest = ["experimental-git"]
+experimental-v5-xml221 = ["experimental-v5-ingest", "experimental-xml"]
 experimental-v5-reader = ["experimental-snapshot-v5"]
 experimental-snapshot-v5 = ["experimental-pipeline", "rusqlite/blob"]
 experimental-cache = ["experimental-pipeline"]
