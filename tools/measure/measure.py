@@ -22,6 +22,7 @@ import xml.parsers.expat
 
 BASE = '5c91f662ba6a398e841ba51b39cb3b6cd3d22c55'
 MIB = 1024 * 1024
+MAX_SECONDS = 3600
 
 
 class Refusal(Exception):
@@ -37,6 +38,8 @@ def exact_sha(value):
 def positive_seconds(value):
     if not math.isfinite(value) or value <= 0:
         raise Refusal("positive_finite_seconds_required")
+    if value > MAX_SECONDS:
+        raise Refusal('seconds_limit_3600')
     return value
 
 

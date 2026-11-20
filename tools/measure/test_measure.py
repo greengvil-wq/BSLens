@@ -161,6 +161,33 @@ class Measures(unittest.TestCase):
                 self.assertEqual(json.loads(r.stdout)['error'], 'positive_finite_seconds_required')
                 self.assertEqual(r.stderr, b'')
 
+    def test_seconds_upper_bound_before_spawn_and_boundary(self):
+        for value in [3600.000001, 3601, 1e300]:
+            with self.subTest(value=value), mock.patch.object(measure.subprocess, 'Popen') as spawn, mock.patch.object(measure.threading, 'Timer') as timer:
+                for call in [lambda: measure.Git(self.repo, value),
+                             lambda: measure.preflight(self.repo, self.commit, seconds=value),
+                             lambda: measure.timed('open', ['unused'], value),
+                             lambda: measure.first_tool('unused', 'unused', 'unused', 1, '0'*64, timeout=value)]:
+                    with self.assertRaisesRegex(measure.Refusal, 'seconds_limit_3600'):
+                        call()
+                spawn.assert_not_called(); timer.assert_not_called()
+            for args in [['preflight', '--repo', str(self.repo), '--commit', self.commit, '--seconds='+str(value)],
+                         ['time', '--phase', 'open', '--timeout='+str(value), '--', '/missing'],
+                         ['first-tool', '--binary', '/missing', '--snapshot', '/missing', '--staging-dir', '/missing', '--max-sqlite-bytes', '1', '--expected-sha256', '0'*64, '--timeout='+str(value)]]:
+                with mock.patch.object(sys, 'argv', ['measure.py', *args]), mock.patch.object(measure.subprocess, 'Popen') as spawn, mock.patch.object(measure.threading, 'Timer') as timer:
+                    with self.assertRaisesRegex(measure.Refusal, 'seconds_limit_3600'):
+                        measure.main()
+                    spawn.assert_not_called(); timer.assert_not_called()
+        self.assertEqual(measure.positive_seconds(3600), 3600)
+        self.assertEqual(measure.preflight(self.repo, self.commit, seconds=3600)['commit'], self.commit)
+        self.assertEqual(measure.timed('open', [sys.executable, '-c', 'pass'], 3600)['exit_code'], 0)
+        self.assertEqual(measure.first_tool(self.fake_mcp('ok'), '/synthetic', '/synthetic', 1,
+                                           '0'*64, timeout=3600)['tool'], 'metadata')
+        result=subprocess.run([sys.executable, str(Path(measure.__file__)), 'time', '--phase', 'open',
+                               '--timeout=3600', '--', sys.executable, '-c', 'pass'], capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(json.loads(result.stdout)['exit_code'], 0)
+
     def fake_mcp(self, mode):
         path=self.root/'synthetic-mcp'
         path.write_text('#!'+sys.executable+'\n'+'''import json, sys, time, os
