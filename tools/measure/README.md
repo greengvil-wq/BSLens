@@ -184,12 +184,46 @@ runner_peak_rss_kib_before_spawn и rss_floor_warning. Пики не вычит�
 повтора, сохранять порядок/состояние кэша: этот инструмент честно пишет
 `cache_state=uncontrolled`. Не объявлять такой прогон cold-cache или оценкой CI.
 
-После появления S5 можно передать `--phase first-tool -- DRIVER ...`. DRIVER
-должен использовать реальный опубликованный MCP-контракт, дождаться initialize,
-отправить выбранный первый tool и завершиться после ответа, закрыв сервер.
-Формат S5 здесь не угадан, драйвера нет; без него first MCP/tool **не измерен**.
-Для разделения startup/first-response драйверу нужны собственные монотонные метки;
-внешняя wall-команда сама этих границ не определяет.
+### Первый полезный MCP tool: отдельный optional измеритель
+
+Контракт прочитан из PR №4 exact `cfa0870bcf20190105f34a7e6f58e086a807ce9b`:
+`bslens-mcp --snapshot ...`, построчный JSON-RPC stdio, initialize с
+`protocolVersion=2025-11-25`, затем `notifications/initialized` и `tools/call`
+для `metadata` с `arguments: {}`. Исходники S5 в эту ветку не включены.
+Нужен отдельно собранный внешний бинарь с feature `experimental-snapshot-mcp`.
+
+```sh
+python3 tools/measure/measure.py first-tool \
+  --binary "$MCP_BIN" --snapshot "$SNAPSHOT" --staging-dir "$STAGING" \
+  --max-sqlite-bytes "$MAX_SQLITE_BYTES" --expected-sha256 "$FILE_SHA256" \
+  --timeout 30 --max-response-bytes 1048576
+```
+
+MCP_BIN — абсолютный путь. SNAPSHOT — исходный артефакт сборщика, не парная
+measurement-only копия; staging — приватный каталог Linux. Передаются только
+snapshot-параметры, без Git/repo; PATH дочернего процесса пустой. Измеритель
+проверяет JSON-RPC ID, версию initialize, отсутствие protocol/tool error и
+`structuredContent.data.status=ok` ответа metadata. Содержимое, пути, source_id,
+request ID и argv не сохраняются; stderr отбрасывается. В stdout только агрегаты
+либо стабильный код отказа без подробностей сервиса.
+
+Отдельные монотонные интервалы:
+
+- `start_to_initialize_seconds`: перед Popen → полная строка initialize response;
+  включает запуск, staging/open и handshake.
+- `request_to_first_useful_seconds`: перед записью metadata request → полная строка
+  полезного ответа; включает запись/чтение транспорта, не время разбора JSON клиентом.
+- `start_to_first_useful_seconds`: общий интервал от запуска до этого ответа.
+
+Таймаут общий для всей сессии; лимит байтов суммарный для stdout обеих фаз,
+включая некорректный вывод. EOF, неверный JSON/ID/версия, tool error, превышение
+лимита или времени — отказ, не успешный замер. После результата/ошибки группа
+сервиса принудительно завершается и процесс ожидается; cleanup не входит в latency.
+Этот измеритель не измеряет RSS. `time --phase first-tool -- DRIVER ...` остаётся
+общим wall/RSS hook и не заменяет отдельные отметки протокола.
+
+`--timeout`, `--seconds` и внутренние API принимают только конечные числа > 0;
+NaN, ±inf, ноль и отрицательные значения отвергаются до процесса или Timer.
 
 ## 4. Воспроизведение и локальная подготовка NucBox
 
@@ -220,16 +254,38 @@ cargo +1.85.1 fmt --check
 Тесты создают собственный Git-репозиторий из авторских литералов S2, проверяют
 неизменность worktree/оригинала, отсутствие имён в отчётах, формат 2.20 и размеры,
 методику пары/dbstat, таймаут, реальную синтетическую сборку S3 и S4 open/verify.
-Без BSLENS_V5_BIN последний интеграционный тест явно skipped; это не полный прогон.
+Для реального MCP-теста дополнительно задать BSLENS_MCP_BIN — абсолютный путь
+к отдельно собранному bslens-mcp из указанного exact S5 (Rust 1.85.1,
+`cargo build --locked --features experimental-snapshot-mcp --bin bslens-mcp`).
+Без BSLENS_V5_BIN тест сборки skipped; без обоих BSLENS_V5_BIN и BSLENS_MCP_BIN
+MCP-интеграция явно skipped. Это не полный прогон.
 `synthetic-results.json` — агрегаты одного debug-прогона на облачной синтетике,
 только проверка работоспособности методики. Это не S8a/S8b и не производительность
-реального корпуса. First MCP/tool не измерен.
+реального корпуса. Этот исторический JSON не содержит замера first MCP/tool;
+новый optional MCP-тест отдельно проверяет синтетический сервис.
 
 Проверено в облачном Linux x86_64, официальном контейнере rust:1.85.1-bookworm,
-Python 3.11.2 / SQLite 3.40.1, без сети во время тестов: 8/8 тестов измерительной
+Python 3.11.2 / SQLite 3.40.1, без сети во время тестов: исходные 8/8 тестов измерительной
 утилиты, включая реальный синтетический build/open/verify; Rust default 1 тест,
 all-features 110 тестов; fmt/diff check успешны. Дополнительная синтетика с более
 4096 файлов и 33 MiB исключённого blob подтверждает блокировку Git guards даже
 при маленьком объёме выбранных XML/BSL. Внешний executor имеет UID 65534 у корневых
 каталогов, поэтому для проверки приватных путей использован контейнер с обычными
 Linux-владельцами, а сами проверки прав не ослаблялись.
+
+После добавления first-tool: **12/12 Python-тестов**, без skipped, в том же
+Linux x86_64 контейнере. Внешние bslens-v5/bslens-mcp собраны из точного S5
+`cfa0870bcf20190105f34a7e6f58e086a807ce9b` на Rust 1.85.1 командой
+`cargo build --locked --offline --all-features --bins`; MCP-тест прошёл с пустым
+PATH, на новой синтетической сборке. Для повторения полного набора:
+
+```sh
+BSLENS_V5_BIN="$EXTERNAL_S5_BIN_DIR/bslens-v5" \
+BSLENS_MCP_BIN="$EXTERNAL_S5_BIN_DIR/bslens-mcp" \
+  python3 -m unittest discover -s tools/measure -v
+```
+
+Проверены также NaN/±inf/0/отрицательное время через CLI и API до Popen/Timer,
+неверные ответы/ID, protocol/tool errors, EOF, превышение времени и размера,
+отсутствие содержимого ответов в отчёте. Это проверка методики на синтетике,
+а не новый замер S8a/S8b. Rust-продукт в этой правке не изменён.

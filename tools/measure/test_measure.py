@@ -141,3 +141,78 @@ class Measures(unittest.TestCase):
         self.assertEqual(phases['build']['exit_code'],0)
         if destination := os.environ.get('BSLENS_MEASURE_REPORT'):
             Path(destination).write_text(json.dumps({'synthetic_only': True, 'profile': 'debug Rust 1.85.1 Linux x86_64', 'preflight': measure.preflight(self.repo,self.commit), 'pair': report, 'phases': phases, 'first_tool': 'not_measured_S5_driver_required'},indent=2)+'\n')
+
+    def test_nonfinite_nonpositive_time_rejected_before_process_or_timer(self):
+        for value in [float('nan'), float('inf'), -float('inf'), 0, -1]:
+            with self.subTest(value=value), mock.patch.object(measure.subprocess, 'Popen') as spawn, mock.patch.object(measure.threading, 'Timer') as timer:
+                for call in [lambda: measure.Git(self.repo, value),
+                             lambda: measure.preflight(self.repo, self.commit, seconds=value),
+                             lambda: measure.timed('open', ['unused'], value),
+                             lambda: measure.first_tool('unused', 'unused', 'unused', 1, '0'*64, timeout=value)]:
+                    with self.assertRaisesRegex(measure.Refusal, 'positive_finite'):
+                        call()
+                spawn.assert_not_called(); timer.assert_not_called()
+        for value in ['nan', '+inf', '-inf', '0', '-1']:
+            for args in [['preflight', '--repo', str(self.repo), '--commit', self.commit, '--seconds='+value],
+                         ['time', '--phase', 'open', '--timeout='+value, '--', '/missing'],
+                         ['first-tool', '--binary', '/missing', '--snapshot', '/missing', '--staging-dir', '/missing', '--max-sqlite-bytes', '1', '--expected-sha256', '0'*64, '--timeout='+value]]:
+                r=subprocess.run([sys.executable, str(Path(measure.__file__)), *args], capture_output=True)
+                self.assertEqual(r.returncode, 1)
+                self.assertEqual(json.loads(r.stdout)['error'], 'positive_finite_seconds_required')
+                self.assertEqual(r.stderr, b'')
+
+    def fake_mcp(self, mode):
+        path=self.root/'synthetic-mcp'
+        path.write_text('#!'+sys.executable+'\n'+'''import json, sys, time, os
+assert os.environ['PATH'] == ''
+assert '--snapshot' in sys.argv and '--repo' not in sys.argv
+mode = '''+repr(mode)+'''
+a=json.loads(sys.stdin.readline())
+assert a['method']=='initialize' and a['params']['protocolVersion']=='2025-11-25'
+if mode=='timeout': time.sleep(5)
+if mode=='eof': sys.exit(1)
+if mode=='oversize': print('x'*20000, flush=True); time.sleep(5)
+if mode=='malformed': print('not json', flush=True); time.sleep(5)
+print(json.dumps({'jsonrpc':'2.0','id':1,'result':{'protocolVersion':'2025-11-25'}}), flush=True)
+assert json.loads(sys.stdin.readline())['method']=='notifications/initialized'
+a=json.loads(sys.stdin.readline())
+assert a['method']=='tools/call' and a['params']=={'name':'metadata','arguments':{}}
+time.sleep(.02)
+r={'jsonrpc':'2.0','id':2,'result':{'isError':False,'structuredContent':{'snapshot':{'source_id':'private-user-secret'},'data':{'status':'ok'}}}}
+if mode=='rpc_error': r={'jsonrpc':'2.0','id':2,'error':{'message':'private-user-secret'}}
+if mode=='tool_error': r['result']['isError']=True
+if mode=='wrong_id': r['id']=9
+print(json.dumps(r), flush=True)
+time.sleep(5)
+''')
+        path.chmod(0o700)
+        return str(path)
+
+    def test_first_tool_protocol_timings_and_redaction(self):
+        r=measure.first_tool(self.fake_mcp('ok'), '/synthetic', '/synthetic', 1, '0'*64, timeout=2)
+        self.assertGreater(r['start_to_initialize_seconds'], 0)
+        self.assertGreaterEqual(r['request_to_first_useful_seconds'], .02)
+        self.assertGreater(r['start_to_first_useful_seconds'], r['request_to_first_useful_seconds'])
+        self.assertNotIn('private-user-secret', json.dumps(r))
+        self.assertNotIn('/synthetic', json.dumps(r))
+
+    def test_first_tool_errors_and_budgets(self):
+        for mode, code in [('timeout','mcp_timeout'), ('eof','mcp_eof'), ('oversize','mcp_response_budget'),
+                           ('malformed','mcp_invalid_json'), ('rpc_error','mcp_response_error'),
+                           ('tool_error','mcp_tool_error'), ('wrong_id','mcp_response_error')]:
+            with self.subTest(mode=mode), self.assertRaisesRegex(measure.Refusal, code):
+                measure.first_tool(self.fake_mcp(mode), '/synthetic', '/synthetic', 1, '0'*64,
+                                   timeout=.3, max_response_bytes=4096)
+
+    @unittest.skipUnless(os.environ.get('BSLENS_MCP_BIN') and os.environ.get('BSLENS_V5_BIN'),
+                         'external exact S5 MCP and builder binaries required')
+    def test_real_first_tool_snapshot_without_git(self):
+        stage=self.root/'mcp-stage'; stage.mkdir(mode=0o700)
+        result=json.loads(subprocess.check_output([os.environ['BSLENS_V5_BIN'], 'build',
+            str(self.repo), self.commit, 'synthetic:measure', str(self.root/'mcp-build'),
+            '100', '1048576', '4194304', '8388608'], stderr=subprocess.DEVNULL))
+        r=measure.first_tool(os.environ['BSLENS_MCP_BIN'], result['path'], stage, 8388608,
+                             result['file_sha256'], timeout=30)
+        self.assertGreater(r['request_to_first_useful_seconds'], 0)
+        self.assertEqual(r['tool'], 'metadata')
+        self.assertFalse(r['git_requested'])

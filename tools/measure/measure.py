@@ -4,11 +4,13 @@ import argparse
 import contextlib
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import platform
 import re
 import resource
+import select
 import signal
 import sqlite3
 import stat
@@ -32,8 +34,15 @@ def exact_sha(value):
     return value
 
 
+def positive_seconds(value):
+    if not math.isfinite(value) or value <= 0:
+        raise Refusal("positive_finite_seconds_required")
+    return value
+
+
 class Git:
     def __init__(self, repo, seconds):
+        positive_seconds(seconds)
         self.command = ['/usr/bin/git', '--no-replace-objects', '-C', str(repo)]
         self.env = {k: v for k, v in os.environ.items() if not k.startswith('GIT_')}
         self.env.update(GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null',
@@ -350,6 +359,7 @@ def pair(snapshot, expected_sha256, commit, workdir, max_bytes=1024*MIB):
 
 
 def timed(phase, command, timeout):
+    positive_seconds(timeout)
     if not command:
         raise Refusal('command_required')
     runner_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -368,12 +378,101 @@ def timed(phase, command, timeout):
         p.returncode = os.waitstatus_to_exitcode(status)
     finally:
         timer.cancel()
+        timer.join()
     return dict(contract='measurement-time-v1', phase=phase, wall_seconds=time.monotonic()-started,
                 maxrss_kib=usage.ru_maxrss, exit_code=p.returncode, timed_out=expired.is_set(),
                 output_discarded=True, cache_state='uncontrolled', runner_peak_rss_kib_before_spawn=runner_rss,
                 rss_floor_warning=usage.ru_maxrss <= runner_rss,
                 rss_caveat='includes child pre-exec lifetime; runner floor may dominate small commands; do not subtract peaks',
                 rss_method='wait4 Linux ru_maxrss, not sum of concurrent processes')
+
+
+def first_tool(binary, snapshot, staging_dir, max_sqlite_bytes, expected_sha256,
+               timeout=30, max_response_bytes=MIB):
+    """Фактический snapshot stdio PR #4; ответы остаются только в памяти."""
+    positive_seconds(timeout)
+    if max_response_bytes <= 0 or max_sqlite_bytes <= 0:
+        raise Refusal('positive_budget_required')
+    if not re.fullmatch('[0-9a-f]{64}', expected_sha256):
+        raise Refusal('expected_sha256_required')
+    command = [str(binary), '--snapshot', str(snapshot), '--staging-dir', str(staging_dir),
+               '--max-sqlite-bytes', str(max_sqlite_bytes), '--expected-sha256', expected_sha256]
+    started = time.monotonic()
+    deadline = started + timeout
+    p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                         stderr=subprocess.DEVNULL, start_new_session=True,
+                         env={**os.environ, 'PATH': ''}, bufsize=0)
+    received = 0
+    pending = bytearray()
+    def ready(stream, writing=False):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise Refusal('mcp_timeout')
+        read, write, _ = select.select([] if writing else [stream], [stream] if writing else [], [], remaining)
+        if not (read or write):
+            raise Refusal('mcp_timeout')
+    def send(value):
+        data = json.dumps(value, separators=(',', ':')).encode() + b'\n'
+        while data:
+            ready(p.stdin, True)
+            data = data[os.write(p.stdin.fileno(), data):]
+    def response(identifier):
+        nonlocal received
+        while b'\n' not in pending:
+            ready(p.stdout)
+            chunk = os.read(p.stdout.fileno(), min(65536, max_response_bytes - received + 1))
+            if not chunk:
+                raise Refusal('mcp_eof')
+            received += len(chunk)
+            if received > max_response_bytes:
+                raise Refusal('mcp_response_budget')
+            pending.extend(chunk)
+        line, _, tail = pending.partition(b'\n')
+        pending[:] = tail
+        arrived = time.monotonic()
+        try:
+            value = json.loads(line)
+        except (ValueError, UnicodeError, RecursionError):
+            raise Refusal('mcp_invalid_json') from None
+        if (not isinstance(value, dict) or value.get('jsonrpc') != '2.0'
+                or type(value.get('id')) is not int or value['id'] != identifier
+                or 'error' in value or not isinstance(value.get('result'), dict)):
+            raise Refusal('mcp_response_error')
+        return value['result'], arrived
+    try:
+        os.set_blocking(p.stdin.fileno(), False)
+        os.set_blocking(p.stdout.fileno(), False)
+        send({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {
+            'protocolVersion': '2025-11-25', 'capabilities': {},
+            'clientInfo': {'name': 'bslens-measure', 'version': '1'}}})
+        initialized, init_at = response(1)
+        if initialized.get('protocolVersion') != '2025-11-25':
+            raise Refusal('mcp_protocol')
+        send({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+        requested = time.monotonic()
+        send({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call',
+              'params': {'name': 'metadata', 'arguments': {}}})
+        useful, useful_at = response(2)
+        content = useful.get('structuredContent')
+        if (useful.get('isError') is not False or not isinstance(content, dict)
+                or not isinstance(content.get('snapshot'), dict)
+                or not isinstance(content.get('data'), dict) or content['data'].get('status') != 'ok'):
+            raise Refusal('mcp_tool_error')
+        return dict(contract='measurement-first-tool-v1', tool='metadata',
+                    start_to_initialize_seconds=init_at-started,
+                    request_to_first_useful_seconds=useful_at-requested,
+                    start_to_first_useful_seconds=useful_at-started,
+                    clock='monotonic', received_bytes=received, output_discarded=True,
+                    cache_state='uncontrolled', git_requested=False)
+    finally:
+        # Завершение сервиса не входит в latency; не ждать EOF от неисправного сервиса.
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        p.wait()
+        p.stdin.close()
+        p.stdout.close()
 
 
 class SafeParser(argparse.ArgumentParser):
@@ -391,12 +490,16 @@ def main():
     p.add_argument('--commit', required=True); p.add_argument('--workdir', required=True); p.add_argument('--max-bytes', type=int, default=1024*MIB)
     p = sub.add_parser('time'); p.add_argument('--phase', choices=['build','open','verify','first-tool'], required=True)
     p.add_argument('--timeout', type=float, default=300); p.add_argument('command', nargs=argparse.REMAINDER)
+    p = sub.add_parser('first-tool'); p.add_argument('--binary', required=True)
+    p.add_argument('--snapshot', required=True); p.add_argument('--staging-dir', required=True)
+    p.add_argument('--max-sqlite-bytes', type=int, required=True); p.add_argument('--expected-sha256', required=True)
+    p.add_argument('--timeout', type=float, default=30); p.add_argument('--max-response-bytes', type=int, default=MIB)
     args = vars(parser.parse_args()); mode = args.pop('mode')
     if platform.system() != 'Linux' or platform.machine() != 'x86_64':
         raise Refusal('linux_x86_64_required')
     if mode == 'time' and args['command'][:1] == ['--']:
         args['command'].pop(0)
-    result = {'preflight': preflight, 'pair': pair, 'time': timed}[mode](**args)
+    result = {'preflight': preflight, 'pair': pair, 'time': timed, 'first-tool': first_tool}[mode](**args)
     print(json.dumps(result, sort_keys=True))
 
 
