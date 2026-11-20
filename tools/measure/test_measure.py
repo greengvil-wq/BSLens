@@ -210,7 +210,8 @@ if mode=='rpc_error': r={'jsonrpc':'2.0','id':2,'error':{'message':'private-user
 if mode=='tool_error': r['result']['isError']=True
 if mode=='wrong_id': r['id']=9
 print(json.dumps(r), flush=True)
-time.sleep(5)
+if mode=='linger': time.sleep(5)
+sys.stdin.read()
 ''')
         path.chmod(0o700)
         return str(path)
@@ -222,6 +223,16 @@ time.sleep(5)
         self.assertGreater(r['start_to_first_useful_seconds'], r['request_to_first_useful_seconds'])
         self.assertNotIn('private-user-secret', json.dumps(r))
         self.assertNotIn('/synthetic', json.dumps(r))
+        self.assertEqual(r['cleanup_status'], 'graceful_exit')
+        self.assertEqual(r['service_exit_code'], 0)
+        self.assertGreaterEqual(r['total_wall_seconds'], r['start_to_first_useful_seconds'])
+
+    def test_first_tool_forced_cleanup_is_explicit(self):
+        with mock.patch.object(measure, 'MCP_CLEANUP_SECONDS', .05):
+            r=measure.first_tool(self.fake_mcp('linger'), '/synthetic', '/synthetic', 1, '0'*64, timeout=2)
+        self.assertEqual(r['cleanup_status'], 'forced_kill')
+        self.assertNotEqual(r['service_exit_code'], 0)
+        self.assertGreaterEqual(r['cleanup_seconds'], .05)
 
     def test_first_tool_errors_and_budgets(self):
         for mode, code in [('timeout','mcp_timeout'), ('eof','mcp_eof'), ('oversize','mcp_response_budget'),
@@ -243,3 +254,6 @@ time.sleep(5)
         self.assertGreater(r['request_to_first_useful_seconds'], 0)
         self.assertEqual(r['tool'], 'metadata')
         self.assertFalse(r['git_requested'])
+        self.assertEqual(r['cleanup_status'], 'graceful_exit')
+        self.assertEqual(r['service_exit_code'], 0)
+        self.assertEqual(list(stage.iterdir()), [])

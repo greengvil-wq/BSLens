@@ -23,6 +23,7 @@ import xml.parsers.expat
 BASE = '5c91f662ba6a398e841ba51b39cb3b6cd3d22c55'
 MIB = 1024 * 1024
 MAX_SECONDS = 3600
+MCP_CLEANUP_SECONDS = 2
 
 
 class Refusal(Exception):
@@ -405,6 +406,7 @@ def first_tool(binary, snapshot, staging_dir, max_sqlite_bytes, expected_sha256,
     p = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.DEVNULL, start_new_session=True,
                          env={**os.environ, 'PATH': ''}, bufsize=0)
+    report = None
     received = 0
     pending = bytearray()
     def ready(stream, writing=False):
@@ -461,21 +463,37 @@ def first_tool(binary, snapshot, staging_dir, max_sqlite_bytes, expected_sha256,
                 or not isinstance(content.get('snapshot'), dict)
                 or not isinstance(content.get('data'), dict) or content['data'].get('status') != 'ok'):
             raise Refusal('mcp_tool_error')
-        return dict(contract='measurement-first-tool-v1', tool='metadata',
+        report = dict(contract='measurement-first-tool-v1', tool='metadata',
                     start_to_initialize_seconds=init_at-started,
                     request_to_first_useful_seconds=useful_at-requested,
                     start_to_first_useful_seconds=useful_at-started,
                     clock='monotonic', received_bytes=received, output_discarded=True,
                     cache_state='uncontrolled', git_requested=False)
+        return report
     finally:
-        # Завершение сервиса не входит в latency; не ждать EOF от неисправного сервиса.
+        # EOF позволяет Rust Drop удалить собственную staging-копию.
+        # Cleanup ограничен отдельно и не входит в initialize/tool latency.
+        cleanup_started = time.monotonic()
+        with contextlib.suppress(BrokenPipeError):
+            p.stdin.close()
+        forced = False
         try:
-            os.killpg(p.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        p.wait()
-        p.stdin.close()
+            p.wait(timeout=MCP_CLEANUP_SECONDS)
+        except subprocess.TimeoutExpired:
+            forced = True
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            p.wait()
         p.stdout.close()
+        if report is not None:
+            report.update(cleanup_status='forced_kill' if forced else
+                          'graceful_exit' if p.returncode == 0 else 'exit_error',
+                          service_exit_code=p.returncode,
+                          cleanup_seconds=time.monotonic()-cleanup_started,
+                          total_wall_seconds=time.monotonic()-started)
+
 
 
 class SafeParser(argparse.ArgumentParser):
