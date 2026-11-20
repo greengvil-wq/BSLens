@@ -1,0 +1,135 @@
+{
+  "synthetic_only": true,
+  "profile": "debug Rust 1.85.1 Linux x86_64",
+  "preflight": {
+    "contract": "measurement-preflight-v1",
+    "guard_base": "5c91f662ba6a398e841ba51b39cb3b6cd3d22c55",
+    "commit": "22460dfe0e96ae7b91794c6e39fd6983760799de",
+    "tree": "84cd5bbe745db0421168edff8209268966c8261f",
+    "full_tree": {
+      "entries": 17,
+      "directories": 7,
+      "regular": 10,
+      "regular_bytes": 1349,
+      "max_regular_bytes": 318,
+      "unsupported": 0,
+      "excluded": 1
+    },
+    "commit_object_bytes": 168,
+    "tree_object_bytes_per_traversal": 664,
+    "git_object_bytes_per_traversal": 2181,
+    "selected": {
+      "xml": {
+        "count": 4,
+        "bytes": 998,
+        "max_bytes": 318
+      },
+      "bsl": {
+        "count": 5,
+        "bytes": 337,
+        "max_bytes": 160
+      }
+    },
+    "xml_root_versions": {
+      "2.21": 4,
+      "2.20": 0,
+      "other_or_unknown": 0
+    },
+    "over_guard_counts": {
+      "git_object_bytes": 0,
+      "path_bytes": 0,
+      "depth": 0,
+      "xml_bytes": 0,
+      "lexical_bytes": 0
+    },
+    "hard_blockers": [],
+    "readiness": "requires_build_and_verify",
+    "not_checked": [
+      "git_layout_and_30s_runtime",
+      "xml_semantics_depth_events_nodes",
+      "lexical_lines_tokens_regions_syntax",
+      "identity_rehash"
+    ],
+    "lexical_size_refusals": 0
+  },
+  "pair": {
+    "contract": "measurement-pair-v1",
+    "measurement_only": true,
+    "commit": "22460dfe0e96ae7b91794c6e39fd6983760799de",
+    "original_sha256": "41c61f1ea11aeb5d72b0dcdc33ca083ef5ef00eb56fecfac769153ee7d76786b",
+    "original_bytes": 86016,
+    "sqlite_version": "3.40.1",
+    "compaction": "VACUUM; auto_vacuum=NONE; DELETE; page_size=4096",
+    "normalized_with_bsl": {
+      "bytes": 86016,
+      "source_lines": {
+        "available": true,
+        "method": "dbstat table_and_all_indexes_allocated_pages",
+        "bytes": 8192
+      },
+      "page_size": 4096
+    },
+    "normalized_without_bsl": {
+      "bytes": 86016,
+      "source_lines": {
+        "available": true,
+        "method": "dbstat table_and_all_indexes_allocated_pages",
+        "bytes": 8192
+      },
+      "page_size": 4096
+    },
+    "paired_difference_bytes": 0,
+    "raw_bsl_payload_bytes": 337,
+    "original_source_lines": {
+      "available": true,
+      "method": "dbstat table_and_all_indexes_allocated_pages",
+      "bytes": 8192
+    },
+    "unchanged_non_bsl_logical_digest": "7a98e834c91a7f0c837f41f8920b540a937094ff8762964e5935e68d03508520"
+  },
+  "phases": {
+    "open": {
+      "contract": "measurement-time-v1",
+      "phase": "open",
+      "wall_seconds": 0.011877764000018942,
+      "maxrss_kib": 27316,
+      "exit_code": 0,
+      "timed_out": false,
+      "output_discarded": true,
+      "cache_state": "uncontrolled",
+      "runner_peak_rss_kib_before_spawn": 27316,
+      "rss_floor_warning": true,
+      "rss_caveat": "includes child pre-exec lifetime; runner floor may dominate small commands; do not subtract peaks",
+      "rss_method": "wait4 Linux ru_maxrss, not sum of concurrent processes"
+    },
+    "verify": {
+      "contract": "measurement-time-v1",
+      "phase": "verify",
+      "wall_seconds": 0.020885574000203633,
+      "maxrss_kib": 27316,
+      "exit_code": 0,
+      "timed_out": false,
+      "output_discarded": true,
+      "cache_state": "uncontrolled",
+      "runner_peak_rss_kib_before_spawn": 27316,
+      "rss_floor_warning": true,
+      "rss_caveat": "includes child pre-exec lifetime; runner floor may dominate small commands; do not subtract peaks",
+      "rss_method": "wait4 Linux ru_maxrss, not sum of concurrent processes"
+    },
+    "build": {
+      "contract": "measurement-time-v1",
+      "phase": "build",
+      "wall_seconds": 0.024726011000893777,
+      "maxrss_kib": 27316,
+      "exit_code": 0,
+      "timed_out": false,
+      "output_discarded": true,
+      "cache_state": "uncontrolled",
+      "runner_peak_rss_kib_before_spawn": 27316,
+      "rss_floor_warning": true,
+      "rss_caveat": "includes child pre-exec lifetime; runner floor may dominate small commands; do not subtract peaks",
+      "rss_method": "wait4 Linux ru_maxrss, not sum of concurrent processes"
+    }
+  },
+  "first_tool": "not_measured_S5_driver_required"
+}
