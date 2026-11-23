@@ -1,0 +1,6 @@
+<MetaDataObject xmlns="http://v8.1c.ru/8.3/MDClasses" version="2.21">
+  <Configuration uuid="00000000-0000-0000-0000-000000000001">
+    <Properties><Name>Synthetic</Name><Synonym/></Properties>
+    <ChildObjects><Catalog>Items</Catalog><Document>Order</Document><InformationRegister>Events</InformationRegister></ChildObjects>
+  </Configuration>
+</MetaDataObject>

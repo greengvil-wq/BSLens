@@ -1,0 +1,109 @@
+[
+  {
+    "name": "bom_crlf_russian",
+    "raw_hex": "efbbbf2f2f20f09f98800d0a2020d09fd180d0bed186d0b5d0b4d183d180d0b020d081d0b6282920d0add0bad181d0bfd0bed180d182202f2f206865616465720d0a2078203d2022d09ad0bed0bdd0b5d186d09fd180d0bed186d0b5d0b4d183d180d18b202f2f2023d095d181d0bbd0b8223b0d0a20d09ad0bed0bdd0b5d186d09fd180d0bed186d0b5d0b4d183d180d18b202f2f2066696e6973680d0a",
+    "expected": [
+      {
+        "name": "ёж",
+        "kind": "procedure",
+        "start_line": 2,
+        "start_byte": 14,
+        "header_start_byte": 14,
+        "header_end_byte": 54,
+        "header_end_line": 2,
+        "end_line": 4,
+        "end_byte": 146,
+        "occurrences": 1,
+        "duplicate": false
+      }
+    ]
+  },
+  {
+    "name": "duplicates",
+    "raw_hex": "50726f63656475726520466f6f28290a456e6450726f6365647572650a46756e6374696f6e20464f4f2829204578706f72740a52657475726e20313b0a456e6446756e6374696f6e",
+    "expected": [
+      {
+        "name": "foo",
+        "kind": "procedure",
+        "start_line": 1,
+        "start_byte": 0,
+        "header_start_byte": 0,
+        "header_end_byte": 15,
+        "header_end_line": 1,
+        "end_line": 2,
+        "end_byte": 28,
+        "occurrences": 2,
+        "duplicate": true
+      },
+      {
+        "name": "foo",
+        "kind": "function",
+        "start_line": 3,
+        "start_byte": 29,
+        "header_start_byte": 29,
+        "header_end_byte": 50,
+        "header_end_line": 3,
+        "end_line": 5,
+        "end_byte": 72,
+        "occurrences": 2,
+        "duplicate": true
+      }
+    ]
+  },
+  {
+    "name": "strings_brackets",
+    "raw_hex": "2f2f20636f6d6d656e740a46756e6374696f6e20436f6d7075746528290a78203d2046285b312c325d2c20226122226222293b0a52657475726e20783b0a456e6446756e6374696f6e0a",
+    "expected": [
+      {
+        "name": "compute",
+        "kind": "function",
+        "start_line": 2,
+        "start_byte": 11,
+        "header_start_byte": 11,
+        "header_end_byte": 29,
+        "header_end_line": 2,
+        "end_line": 5,
+        "end_byte": 73,
+        "occurrences": 1,
+        "duplicate": false
+      }
+    ]
+  },
+  {
+    "name": "empty",
+    "raw_hex": "2f2f20d0b1d0b5d0b720d0bcd0b5d182d0bed0b4d0bed0b20d0a",
+    "expected": []
+  },
+  {
+    "name": "two",
+    "raw_hex": "d09fd180d0bed186d0b5d0b4d183d180d0b020d09028290ad09ad0bed0bdd0b5d186d09fd180d0bed186d0b5d0b4d183d180d18b0a46756e6374696f6e205a28290a456e6446756e6374696f6e0a",
+    "expected": [
+      {
+        "name": "а",
+        "kind": "procedure",
+        "start_line": 1,
+        "start_byte": 0,
+        "header_start_byte": 0,
+        "header_end_byte": 23,
+        "header_end_line": 1,
+        "end_line": 2,
+        "end_byte": 52,
+        "occurrences": 1,
+        "duplicate": false
+      },
+      {
+        "name": "z",
+        "kind": "function",
+        "start_line": 3,
+        "start_byte": 53,
+        "header_start_byte": 53,
+        "header_end_byte": 65,
+        "header_end_line": 3,
+        "end_line": 4,
+        "end_byte": 77,
+        "occurrences": 1,
+        "duplicate": false
+      }
+    ]
+  }
+]

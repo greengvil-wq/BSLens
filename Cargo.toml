@@ -6,10 +6,27 @@ rust-version = "1.85"
 
 [features]
 default = []
+experimental-cache = ["experimental-pipeline"]
 synthetic-dev = []
+experimental-stdio = ["dep:serde"]
+experimental-router = ["experimental-stdio", "experimental-pipeline"]
+experimental-git = []
+experimental-lexical = []
+experimental-xml = ["dep:roxmltree", "dep:quick-xml"]
+experimental-tree = ["experimental-xml"]
+experimental-pipeline = ["experimental-git", "experimental-tree", "experimental-lexical"]
 
 [dependencies]
 rusqlite = { version = "=0.32.1", features = ["bundled"] }
 serde_json = "=1.0.140"
 sha2 = "=0.10.8"
 sha1 = "=0.10.6"
+roxmltree = { version = "=0.20.0", optional = true }
+quick-xml = { version = "=0.37.5", optional = true }
+
+serde = { version = "=1.0.229", optional = true }
+
+[[bin]]
+name = "bslens-mcp"
+path = "src/bin/bslens-mcp.rs"
+required-features = ["experimental-router"]
