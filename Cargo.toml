@@ -6,6 +6,9 @@ rust-version = "1.85"
 
 [features]
 default = []
+experimental-snapshot-mcp = ["experimental-router", "experimental-snapshot-v5"]
+experimental-v5-reader = ["experimental-snapshot-v5"]
+experimental-snapshot-v5 = ["experimental-pipeline", "rusqlite/blob"]
 experimental-cache = ["experimental-pipeline"]
 synthetic-dev = []
 experimental-stdio = ["dep:serde"]
@@ -30,3 +33,8 @@ serde = { version = "=1.0.229", optional = true }
 name = "bslens-mcp"
 path = "src/bin/bslens-mcp.rs"
 required-features = ["experimental-router"]
+
+[[bin]]
+name = "bslens-v5"
+path = "src/bin/bslens-v5.rs"
+required-features = ["experimental-snapshot-v5"]
