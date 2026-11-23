@@ -35,3 +35,26 @@ impl ValidatedSnapshot {
 
 #[cfg(feature = "synthetic-dev")]
 pub mod synthetic;
+
+#[cfg(feature = "experimental-xml")]
+pub mod xml221;
+
+#[cfg(feature = "experimental-git")]
+pub mod git_manifest;
+#[cfg(feature = "experimental-tree")]
+pub mod structure;
+
+#[cfg(feature = "experimental-pipeline")]
+pub mod pipeline;
+
+#[cfg(feature = "experimental-lexical")]
+pub mod lexical;
+
+#[cfg(feature = "experimental-stdio")]
+pub mod mcp_transport;
+
+#[cfg(feature = "experimental-router")]
+pub mod mcp_router;
+
+#[cfg(feature = "experimental-cache")]
+pub mod cache;

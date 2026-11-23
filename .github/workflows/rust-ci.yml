@@ -1,0 +1,33 @@
+name: Rust CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Linux / Rust 1.85.1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Подготовить окружение
+        run: |
+          command -v git
+          /usr/bin/python3 --version
+          rustup toolchain install 1.85.1 --profile minimal --component rustfmt
+          rustup run 1.85.1 rustc --version
+      - name: Проверить форматирование
+        run: rustup run 1.85.1 cargo fmt --all -- --check
+      - name: Тестировать сборку по умолчанию
+        run: rustup run 1.85.1 cargo test --locked
+      - name: Тестировать все возможности
+        run: rustup run 1.85.1 cargo test --locked --all-features

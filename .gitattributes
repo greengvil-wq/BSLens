@@ -1,1 +1,2 @@
 assets/*.svg -text whitespace=cr-at-eol
+tests/fixtures/**/*.bsl -text whitespace=cr-at-eol
