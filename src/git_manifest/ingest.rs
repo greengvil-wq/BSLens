@@ -27,7 +27,7 @@ impl Limits {
         total_bytes: 1024 * 1024 * 1024,
         deadline: Duration::from_secs(300),
     };
-    fn validate(self) -> Result<()> {
+    pub(crate) fn validate(self) -> Result<()> {
         for (name, value, ceiling) in [
             ("entries", self.entries, Self::MAX.entries),
             ("trees", self.trees, Self::MAX.trees),

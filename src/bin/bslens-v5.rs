@@ -15,6 +15,9 @@ fn main() {
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     use bslens_core::snapshot_v5::{build, Limits};
     let args: Vec<_> = std::env::args().skip(1).collect();
+    if args.first().is_some_and(|s| s == "build-ingest") {
+        return ingest_command(&args);
+    }
     if args.first().is_some_and(|s| s != "build") {
         return read_command(&args);
     }
@@ -139,5 +142,42 @@ fn read_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         }
         _ => unreachable!(),
     }
+    Ok(())
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+fn ingest_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    use bslens_core::{
+        git_manifest::ingest,
+        snapshot_v5::{ingest_writer, Limits},
+    };
+    if args.len() != 16 {
+        return Err("Использование: bslens-v5 build-ingest REPO FULL_COMMIT EXPECTED_TREE SOURCE_ID OUTPUT_DIR MAX_SOURCES MAX_SOURCE_BYTES MAX_TOTAL_BYTES MAX_SQLITE_BYTES GIT_ENTRIES GIT_TREES GIT_READS GIT_OBJECT_BYTES GIT_TOTAL_BYTES GIT_DEADLINE_MS".into());
+    }
+    let result = ingest_writer::build(
+        std::path::Path::new(&args[1]),
+        &args[2],
+        &args[3],
+        &args[4],
+        std::path::Path::new(&args[5]),
+        Limits {
+            source_count: args[6].parse()?,
+            source_bytes: args[7].parse()?,
+            total_source_bytes: args[8].parse()?,
+            sqlite_bytes: args[9].parse()?,
+        },
+        ingest::Limits {
+            entries: args[10].parse()?,
+            trees: args[11].parse()?,
+            reads: args[12].parse()?,
+            object_bytes: args[13].parse()?,
+            total_bytes: args[14].parse()?,
+            deadline: std::time::Duration::from_millis(args[15].parse()?),
+        },
+    )?;
+    println!(
+        "{}",
+        serde_json::json!({"path":result.path,"snapshot_id":result.snapshot_id,"facts_sha256":result.facts_sha256,"file_sha256":result.file_sha256,"reused":result.reused,"profile":ingest_writer::PROFILE,"experimental":true})
+    );
     Ok(())
 }

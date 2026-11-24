@@ -392,6 +392,6 @@ impl ObjectReader {
     }
 }
 
-/// Separate synthetic-only ingest; not used by S3/S4.
+/// Bounded opt-in ingest; legacy Manifest remains unchanged.
 #[cfg(feature = "experimental-v5-ingest")]
 pub mod ingest;

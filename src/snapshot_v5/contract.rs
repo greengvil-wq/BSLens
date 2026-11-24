@@ -203,15 +203,25 @@ pub fn validate_schema_profile(db: &Connection) -> Result<()> {
     }
     let reference = Connection::open_in_memory()?;
     reference.execute_batch(SCHEMA)?;
-    check_catalog(db, &reference)?;
+    let expected_profile = if check_catalog(db, &reference).is_ok() {
+        PROFILE
+    } else {
+        let ingest_reference = Connection::open_in_memory()?;
+        ingest_reference.execute_batch(&super::ingest_writer::schema())?;
+        check_catalog(db, &ingest_reference)?;
+        super::ingest_writer::PROFILE
+    };
     metadata_bounds(db)?;
     let row: (i64, i64, String, String) = db.query_row(
         "SELECT count(*),schema_version,profile,relations FROM metadata",
         [],
         |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
     )?;
-    if row != (1, 5, PROFILE.into(), "not_analyzed".into()) {
+    if row.0 != 1 || row.1 != 5 || row.2 != expected_profile || row.3 != "not_analyzed" {
         return Err(Error::Contract("profile"));
+    }
+    if row.2 == super::ingest_writer::PROFILE {
+        super::ingest_writer::validate_metadata(db)?;
     }
     Ok(())
 }

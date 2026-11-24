@@ -1,6 +1,7 @@
 //! Экспериментальный сборщик Linux x86_64 v5. Не читатель и не production capability.
 #![cfg(all(target_os = "linux", target_arch = "x86_64"))]
 pub mod contract;
+pub mod ingest_writer;
 mod publish;
 use crate::{
     git_manifest::{self, Manifest},
@@ -20,6 +21,7 @@ pub enum Error {
     Sqlite(rusqlite::Error),
     Json(serde_json::Error),
     Git(git_manifest::Code),
+    Ingest(git_manifest::ingest::Error),
     Xml(crate::xml221::XmlError),
     Limit {
         name: &'static str,

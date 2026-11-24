@@ -360,13 +360,15 @@ impl LinuxSnapshotReader {
 
     /// Returns scope and temporary coverage; no Git-origin claim.
     pub fn info(&self) -> Result<serde_json::Value> {
-        let (id, scope, coverage): (String, String, String) = self.connection.query_row(
-            "SELECT snapshot_id,scope_id,coverage_draft FROM metadata WHERE singleton=1",
+        let (id, scope, coverage, profile): (String, String, String, String) = self
+            .connection
+            .query_row(
+            "SELECT snapshot_id,scope_id,coverage_draft,profile FROM metadata WHERE singleton=1",
             [],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )?;
         Ok(
-            serde_json::json!({"snapshot_id":id,"profile":contract::PROFILE,"scope_id":scope,"coverage":serde_json::from_str::<serde_json::Value>(&coverage).map_err(|e|Error::Contract(e.to_string()))?,"relations":"not_analyzed","git_provenance":"not_verified","experimental":true}),
+            serde_json::json!({"snapshot_id":id,"profile":profile,"scope_id":scope,"coverage":serde_json::from_str::<serde_json::Value>(&coverage).map_err(|e|Error::Contract(e.to_string()))?,"relations":"not_analyzed","git_provenance":"not_verified","experimental":true}),
         )
     }
 

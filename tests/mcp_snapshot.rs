@@ -42,6 +42,9 @@ struct Fixture {
 }
 impl Fixture {
     fn new(extra: &[(&str, Vec<u8>)]) -> Self {
+        Self::with_ingest(extra, false)
+    }
+    fn with_ingest(extra: &[(&str, Vec<u8>)], ingest_mode: bool) -> Self {
         let root = std::env::temp_dir().join(format!(
             "bslens-s6-{}-{}",
             std::process::id(),
@@ -112,7 +115,7 @@ impl Fixture {
         ]);
         let sha = git(&["rev-parse", "HEAD"]);
         let old = GitStructure::read(&repo, &sha, git_manifest::Limits::default()).unwrap();
-        let built = build(
+        let mut built = build(
             &repo,
             &sha,
             "synthetic:s6",
@@ -125,8 +128,179 @@ impl Fixture {
             },
         )
         .unwrap();
+        if ingest_mode {
+            // Inventory exceeds both old Git ceilings, selected XML/BSL remains small.
+            for i in 0..5 {
+                fs::write(
+                    repo.join(format!("ignored-{i}.bin")),
+                    vec![b'x'; 7 * 1024 * 1024],
+                )
+                .unwrap();
+            }
+            git(&["add", "."]);
+            git(&[
+                "-c",
+                "user.name=Synthetic",
+                "-c",
+                "user.email=synthetic@invalid",
+                "commit",
+                "-qm",
+                "large excluded bodies",
+            ]);
+            let bytes_sha = git(&["rev-parse", "HEAD"]);
+            assert!(git_manifest::Manifest::read(
+                &repo,
+                &bytes_sha,
+                git_manifest::Limits::default()
+            )
+            .is_err());
+            for i in 0..4200 {
+                fs::write(repo.join(format!("inventory-{i:04}.txt")), b"inventory").unwrap();
+            }
+            git(&["add", "."]);
+            git(&[
+                "-c",
+                "user.name=Synthetic",
+                "-c",
+                "user.email=synthetic@invalid",
+                "commit",
+                "-qm",
+                "large inventory",
+            ]);
+            let sha = git(&["rev-parse", "HEAD"]);
+            let tree = git(&["rev-parse", "HEAD^{tree}"]);
+            assert!(
+                git_manifest::Manifest::read(&repo, &sha, git_manifest::Limits::default()).is_err()
+            );
+            let run = |dir: &str, source_count: &str, sqlite: &str, git_total: &str| {
+                Command::new(env!("CARGO_BIN_EXE_bslens-v5"))
+                    .args([
+                        "build-ingest",
+                        repo.to_str().unwrap(),
+                        &sha,
+                        &tree,
+                        "synthetic:ingest",
+                        root.join(dir).to_str().unwrap(),
+                        source_count,
+                        "1000000",
+                        "4000000",
+                        sqlite,
+                        "5000",
+                        "100",
+                        "5000",
+                        "1000000",
+                        git_total,
+                        "30000",
+                    ])
+                    .output()
+                    .unwrap()
+            };
+            let receipt = bslens_core::git_manifest::ingest::ingest(
+                &repo,
+                &sha,
+                &tree,
+                bslens_core::git_manifest::ingest::Limits {
+                    entries: 5000,
+                    trees: 100,
+                    reads: 5000,
+                    object_bytes: 1000000,
+                    total_bytes: 4000000,
+                    deadline: Duration::from_secs(30),
+                },
+                |_, _, _| Ok(()),
+            )
+            .unwrap();
+            assert!(receipt.selected > 1);
+            let late_budget = (receipt.bytes - 1).to_string();
+            // Count fails after one INSERT; Git budget fails on the last selected blob.
+            // SQLite's small page limit may fail earlier while creating the schema.
+            for (dir, count, sqlite, total) in [
+                ("fail-count", "1", "4000000", "4000000"),
+                ("fail-pages", "100", "4096", "4000000"),
+                ("fail-git", "100", "4000000", late_budget.as_str()),
+            ] {
+                let out = run(dir, count, sqlite, total);
+                assert!(!out.status.success(), "unexpected success: {dir}");
+                if dir == "fail-git" {
+                    assert!(String::from_utf8_lossy(&out.stderr).contains("total_bytes"));
+                }
+                if dir == "fail-count" {
+                    assert!(String::from_utf8_lossy(&out.stderr).contains("source_count"));
+                }
+                assert_eq!(
+                    fs::read_dir(root.join(dir)).unwrap().count(),
+                    0,
+                    "leftovers {dir}"
+                );
+            }
+            let above_facts_ceiling = run("above-facts-ceiling", "4097", "4000000", "4000000");
+            assert!(!above_facts_ceiling.status.success());
+            assert!(String::from_utf8_lossy(&above_facts_ceiling.stderr).contains("source_count"));
+            assert!(!root.join("above-facts-ceiling").exists());
+            let out = run("ingest-output", "100", "4000000", "4000000");
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            let value: Value = serde_json::from_slice(&out.stdout).unwrap();
+            let repeat = run("ingest-output", "100", "4000000", "4000000");
+            assert!(repeat.status.success());
+            let repeat: Value = serde_json::from_slice(&repeat.stdout).unwrap();
+            assert_eq!(repeat["snapshot_id"], value["snapshot_id"]);
+            assert_eq!(repeat["reused"], true);
+            let changed = run("other-budget", "101", "4000000", "4000000");
+            assert!(changed.status.success());
+            let changed: Value = serde_json::from_slice(&changed.stdout).unwrap();
+            assert_ne!(changed["snapshot_id"], value["snapshot_id"]);
+            assert_ne!(built.snapshot_id, value["snapshot_id"]);
+            built = BuiltSnapshot {
+                path: PathBuf::from(value["path"].as_str().unwrap()),
+                snapshot_id: value["snapshot_id"].as_str().unwrap().into(),
+                facts_sha256: value["facts_sha256"].as_str().unwrap().into(),
+                file_sha256: value["file_sha256"].as_str().unwrap().into(),
+                reused: false,
+            };
+        }
         // Only a repository created by this test is removed. Runtime has no repository.
         fs::remove_dir_all(&repo).unwrap();
+        if ingest_mode {
+            let out = Command::new(env!("CARGO_BIN_EXE_bslens-v5"))
+                .env("PATH", "")
+                .args([
+                    "verify",
+                    built.path.to_str().unwrap(),
+                    "--staging-dir",
+                    stage.to_str().unwrap(),
+                    "--max-sqlite-bytes",
+                    "4000000",
+                    "--expected-sha256",
+                    &built.file_sha256,
+                    "--max-sources",
+                    "100",
+                    "--max-source-bytes",
+                    "1000000",
+                    "--max-total-bytes",
+                    "4000000",
+                    "--max-scratch-bytes",
+                    "4000000",
+                ])
+                .output()
+                .unwrap();
+            assert!(
+                out.status.success(),
+                "{}",
+                String::from_utf8_lossy(&out.stderr)
+            );
+            let v: Value = serde_json::from_slice(&out.stdout).unwrap();
+            assert_eq!(v["offline_facts_verified"], true);
+            assert_eq!(
+                v["snapshot"]["profile"],
+                bslens_core::snapshot_v5::ingest_writer::PROFILE
+            );
+            assert_eq!(v["git_provenance"], "not_verified");
+        }
+
         Self {
             root,
             repo,
@@ -324,7 +498,13 @@ fn bytes(v: &Value) -> Vec<u8> {
 }
 #[test]
 fn actual_mcp_offline_tree_parity_status_and_exact_sources_one_reader() {
-    let f = Fixture::new(&[]);
+    check_offline_mcp(Fixture::new(&[]));
+}
+#[test]
+fn actual_ingest_writer_large_inventory_build_verify_mcp_and_rollback() {
+    check_offline_mcp(Fixture::with_ingest(&[], true));
+}
+fn check_offline_mcp(f: Fixture) {
     assert!(!f.repo.exists());
     let mut p = Peer::start(&f);
     let list = p.request("tools/list", json!({}));
@@ -665,4 +845,23 @@ fn generated_large_coverage_is_summarized_and_unknown_fields_never_echoed() {
         b"x"
     );
     p.finish();
+}
+
+#[test]
+fn ingest_profile_rejects_unrecognized_parameters_and_schema_profile_mismatch() {
+    let mut f = Fixture::with_ingest(&[], true);
+    let original = fs::read(&f.built.path).unwrap();
+    for sql in [
+        "UPDATE metadata SET build_parameters=json_set(build_parameters,'$.extra',1)",
+        "UPDATE metadata SET build_parameters=json_set(build_parameters,'$.git_limits.entries',100001)",
+        "UPDATE metadata SET limits_draft='{}'",
+        "PRAGMA ignore_check_constraints=ON;UPDATE metadata SET profile='linux-v5-spike-xml221-bsl-r09'",
+    ] {
+        fs::write(&f.built.path,&original).unwrap();
+        f.alter(sql);
+        let out=f.command().output().unwrap();
+        assert!(!out.status.success(),"{sql}");
+        assert!(out.stdout.is_empty());
+        assert_eq!(fs::read_dir(&f.stage).unwrap().count(),0);
+    }
 }
