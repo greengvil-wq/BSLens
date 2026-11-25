@@ -9,10 +9,14 @@ pub(crate) fn schema() -> String {
         .replace(super::navigator_agreement_writer::PROFILE, PROFILE)
 }
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
+    validate_metadata_for(db, false)
+}
+
+pub(super) fn validate_metadata_for(db: &Connection, sppr: bool) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
         true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true,
+        true, true, true, true, true, true, sppr,
     )?;
     sidecar_writer::validate_summary(db)?;
     let (count, bad): (u64, bool) = db.query_row(
@@ -52,6 +56,34 @@ pub fn build(
     globals: &[String],
     bin_bytes: u64,
     diagnostics_bytes: u64,
+) -> Result<BuiltSnapshot> {
+    build_for(
+        repo,
+        commit,
+        tree,
+        source_id,
+        output,
+        limits,
+        git,
+        globals,
+        bin_bytes,
+        diagnostics_bytes,
+        None,
+    )
+}
+
+pub(super) fn build_for(
+    repo: &Path,
+    commit: &str,
+    tree: &str,
+    source_id: &str,
+    output: &Path,
+    limits: streaming_facts::Limits,
+    git: ingest::Limits,
+    globals: &[String],
+    bin_bytes: u64,
+    diagnostics_bytes: u64,
+    processor_help: Option<&[String]>,
 ) -> Result<BuiltSnapshot> {
     companion_writer::build_mode(
         repo,
@@ -97,5 +129,8 @@ pub fn build(
         true,
         true,
         true,
+        processor_help.is_some(),
+        processor_help.is_some(),
+        processor_help,
     )
 }

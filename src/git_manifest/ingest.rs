@@ -2,7 +2,7 @@
 use super::{hex, object_store, process, valid_oid, Code};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     path::Path,
     time::{Duration, Instant},
 };
@@ -124,6 +124,12 @@ pub struct Receipt {
     pub reads: usize,
     pub bytes: usize,
     pub selected: usize,
+    pub(crate) excluded_sizes: BTreeMap<String, (Exclusion, usize)>,
+}
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Exclusion {
+    Help,
+    OversizeTemplate,
 }
 struct Reader {
     shell: process::Shell,
@@ -316,6 +322,41 @@ where
         consumer,
     )
 }
+pub(crate) const MAX_TEMPLATE_BIN_BYTES: usize = 32 * 1024 * 1024;
+
+pub(crate) fn binary_template_path(path: &str) -> bool {
+    let mut p = path.split('/');
+    match (
+        p.next(),
+        p.next(),
+        p.next(),
+        p.next(),
+        p.next(),
+        p.next(),
+        p.next(),
+    ) {
+        (
+            Some("CommonTemplates"),
+            Some(name),
+            Some("Ext"),
+            Some("Template.bin"),
+            None,
+            None,
+            None,
+        ) => !name.is_empty(),
+        (
+            Some("Catalogs" | "Documents" | "InformationRegisters" | "DataProcessors" | "Reports"),
+            Some(owner),
+            Some("Templates"),
+            Some(name),
+            Some("Ext"),
+            Some("Template.bin"),
+            None,
+        ) => !owner.is_empty() && !name.is_empty(),
+        _ => false,
+    }
+}
+
 pub(crate) fn ingest_selected_capped<F, S, C>(
     repo: &Path,
     commit: &str,
@@ -323,12 +364,42 @@ pub(crate) fn ingest_selected_capped<F, S, C>(
     limits: Limits,
     select: S,
     bin_cap: C,
+    consumer: F,
+) -> Result<Receipt>
+where
+    F: FnMut(&Entry, &str, &[u8]) -> std::result::Result<(), String>,
+    S: Fn(&Entry) -> bool,
+    C: Fn(&Entry) -> Option<usize>,
+{
+    ingest_selected_scoped(
+        repo,
+        commit,
+        expected_tree,
+        limits,
+        select,
+        bin_cap,
+        |_| false,
+        false,
+        consumer,
+    )
+}
+
+pub(crate) fn ingest_selected_scoped<F, S, C, H>(
+    repo: &Path,
+    commit: &str,
+    expected_tree: &str,
+    limits: Limits,
+    select: S,
+    bin_cap: C,
+    omit_help: H,
+    skip_large_templates: bool,
     mut consumer: F,
 ) -> Result<Receipt>
 where
     F: FnMut(&Entry, &str, &[u8]) -> std::result::Result<(), String>,
     S: Fn(&Entry) -> bool,
     C: Fn(&Entry) -> Option<usize>,
+    H: Fn(&Entry) -> bool,
 {
     if !valid_oid(commit) || !valid_oid(expected_tree) || commit.len() != expected_tree.len() {
         return Err(Error::Git(Code::InvalidSha));
@@ -366,11 +437,62 @@ where
     reader.walk(expected_tree, "", 0)?;
     let mut entries = std::mem::take(&mut reader.entries);
     entries.sort_by(|a, b| a.path.cmp(&b.path));
-    let selected = entries.iter().filter(|e| select(e)).count();
-    check("reads", limits.reads, reader.reads + selected)?;
-    for entry in entries.iter().filter(|e| select(e)) {
+    let mut selected = 0;
+    let mut excluded_sizes = BTreeMap::new();
+    check(
+        "reads",
+        limits.reads,
+        reader.reads + entries.iter().filter(|e| select(e)).count(),
+    )?;
+    for entry in &entries {
+        let help = omit_help(entry);
+        if !help && !select(entry) {
+            continue;
+        }
+        let template_cap = if skip_large_templates && binary_template_path(&entry.path) {
+            bin_cap(entry)
+        } else {
+            None
+        };
+        let announced = if help || template_cap.is_some() {
+            check("reads", limits.reads, reader.reads + 1)?;
+            reader.reads += 1;
+            Some(
+                reader
+                    .shell
+                    .size(&entry.oid, "blob", deadline)
+                    .map_err(|e| Error::Read {
+                        oid: entry.oid.clone(),
+                        code: e.code,
+                        cap: usize::MAX,
+                        budget: "opaque_header",
+                    })?,
+            )
+        } else {
+            None
+        };
+        let reason = if help {
+            Some(Exclusion::Help)
+        } else if template_cap
+            .zip(announced)
+            .is_some_and(|(cap, size)| size > cap)
+        {
+            Some(Exclusion::OversizeTemplate)
+        } else {
+            None
+        };
+        if let (Some(reason), Some(size)) = (reason, announced) {
+            excluded_sizes.insert(entry.path.clone(), (reason, size));
+            continue;
+        }
+        selected += 1;
         let raw = if let Some(cap) = bin_cap(entry) {
-            check("opaque_bin_bytes", 24 * 1024 * 1024, cap)?;
+            let ceiling = if binary_template_path(&entry.path) {
+                MAX_TEMPLATE_BIN_BYTES
+            } else {
+                24 * 1024 * 1024
+            };
+            check("opaque_bin_bytes", ceiling, cap)?;
             if cap == 0 {
                 return Err(Error::Git(Code::Object));
             }
@@ -378,6 +500,9 @@ where
         } else {
             reader.object(&entry.oid, "blob")?
         };
+        if announced.is_some_and(|n| n != raw.len()) {
+            return Err(Error::Git(Code::Identity));
+        }
         let sha256 = hex(&Sha256::digest(&raw));
         reader.time()?;
         consumer(entry, &sha256, &raw).map_err(Error::Consumer)?;
@@ -393,5 +518,6 @@ where
         reads: reader.reads,
         bytes: reader.bytes,
         selected,
+        excluded_sizes,
     })
 }

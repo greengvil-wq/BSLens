@@ -334,9 +334,26 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
             super::corpus_writer::validate_path(&path)?;
         }
         if budget.workflows {
-            super::workflow_writer::validate_path(&path)?;
+            super::workflow_writer::validate_path_mode(
+                &path,
+                budget
+                    .bin_policy
+                    .as_ref()
+                    .is_some_and(|p| p.processor_help.is_some()),
+            )?;
         }
-        if budget.reports {
+        let report_resources = budget
+            .bin_policy
+            .as_ref()
+            .and_then(|b| b.processor_help.as_ref());
+        if report_resources.is_some_and(|owners| super::navigator_sppr::excluded(&path, owners)) {
+            return Err(Error::Contract("processor_help_present"));
+        }
+        let scd_svg = report_resources.is_some() && super::navigator_sppr::svg_path(&path);
+        if scd_svg && kind != "payload" {
+            return Err(Error::Contract("report_svg_kind"));
+        }
+        if budget.reports && !scd_svg {
             if budget.bin_policy.as_ref().is_some_and(|b| b.root_help) {
                 super::corpus_help_writer::validate_path(&path)?;
             } else {
@@ -353,7 +370,13 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
             super::service_writer::validate_path(&path)?;
         }
         if budget.journals {
-            super::journal_writer::validate_path(&path)?;
+            super::journal_writer::validate_path_mode(
+                &path,
+                budget
+                    .bin_policy
+                    .as_ref()
+                    .is_some_and(|p| p.processor_help.is_some()),
+            )?;
         }
         if budget.leaves {
             super::leaf_writer::validate_path(&path)?;
@@ -361,12 +384,26 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
         if budget.shared {
             super::shared_writer::validate_path(&path)?;
         }
-        if budget.roots {
+        if budget.roots
+            && !(budget
+                .bin_policy
+                .as_ref()
+                .is_some_and(|p| p.processor_help.is_some())
+                && super::navigator_sppr::filter_companion_path(&path))
+        {
             xml221::descriptor_only_path(&path).map_err(Error::Xml)?;
         }
         if budget.companions
             && kind
-                != if budget.bin_policy.as_ref().is_some_and(|p| p.root_sidecars) {
+                != if budget
+                    .bin_policy
+                    .as_ref()
+                    .is_some_and(|p| p.processor_help.is_some())
+                    && super::navigator_sppr::filter_companion_path(&path)
+                    && path.ends_with("/Ext/Form.xml")
+                {
+                    "payload"
+                } else if budget.bin_policy.as_ref().is_some_and(|p| p.root_sidecars) {
                     super::sidecar_writer::source_kind(&path)
                 } else if budget.corpus {
                     super::corpus_writer::source_kind(&path)
@@ -444,6 +481,11 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
         if budget.workflows
             && super::workflow_writer::is_kind(kind)
             && parsed.object.modules.len() != 2
+            && !(kind == Kind::ExchangePlan
+                && budget
+                    .bin_policy
+                    .as_ref()
+                    .is_some_and(|p| p.processor_help.is_some()))
         {
             return Err(Error::Contract("workflow_modules_missing"));
         }
@@ -538,13 +580,26 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
                     budget.charge(1)
                 })?;
             } else if budget.leaves && super::leaf_writer::is_kind(kind) {
-                super::leaf_writer::record_payloads(db, &path, kind, i as i64 + 2, || {
-                    budget.charge(1)
-                })?;
+                super::leaf_writer::record_payloads(
+                    db,
+                    &path,
+                    kind,
+                    i as i64 + 2,
+                    budget
+                        .bin_policy
+                        .as_ref()
+                        .is_some_and(|p| p.processor_help.is_some()),
+                    || budget.charge(1),
+                )?;
             } else {
-                super::shared_writer::record_payloads(db, &path, kind, i as i64 + 2, || {
-                    budget.charge(1)
-                })?;
+                super::shared_writer::record_payloads(
+                    db,
+                    &path,
+                    kind,
+                    i as i64 + 2,
+                    omitted_template(budget, &path),
+                    || budget.charge(1),
+                )?;
             }
             budget.time()?;
         }
@@ -589,10 +644,31 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
                 &path,
                 r.kind,
                 parsed.object.modules.len(),
+                budget
+                    .bin_policy
+                    .as_ref()
+                    .is_some_and(|p| p.processor_help.is_some()),
             )?;
         }
         if budget.reports && super::report_writer::is_path(&path) {
-            super::report_writer::check_companion(db, &path, r.kind, parsed.object.modules.len())?;
+            super::report_writer::check_companion(
+                db,
+                &path,
+                r.kind,
+                parsed.object.modules.len(),
+                omitted_template(budget, &path),
+            )?;
+        }
+        if r.kind == Kind::Template
+            && path.starts_with("Reports/")
+            && budget
+                .bin_policy
+                .as_ref()
+                .is_some_and(|b| b.processor_help.is_some())
+        {
+            super::navigator_sppr::validate_scd_svg(db, &path, &reference_path, || {
+                budget.charge(1)
+            })?;
         }
         if budget.registers && super::register_writer::is_path(&path) {
             super::register_writer::check_companion(
@@ -612,8 +688,35 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
                 budget.bin_policy.as_ref().is_some_and(|p| p.optional_form),
             )?;
         }
-        if budget.journals && path.starts_with("DocumentJournals/") {
+        if budget.journals
+            && (path.starts_with("DocumentJournals/")
+                || (path.starts_with("Enums/")
+                    && budget
+                        .bin_policy
+                        .as_ref()
+                        .is_some_and(|p| p.processor_help.is_some())))
+        {
             super::journal_writer::check_companion(db, &path, r.kind, parsed.object.modules.len())?;
+        }
+        if path.starts_with("FilterCriteria/")
+            && budget
+                .bin_policy
+                .as_ref()
+                .is_some_and(|p| p.processor_help.is_some())
+        {
+            let prefix = path
+                .strip_suffix(".xml")
+                .ok_or(Error::Contract("xml_path"))?;
+            if r.kind != Kind::Form
+                || parsed.object.modules.len() > 1
+                || !db.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sources WHERE path=?1 AND kind='payload')",
+                    [format!("{prefix}/Ext/Form.xml")],
+                    |r| r.get::<_, bool>(0),
+                )?
+            {
+                return Err(Error::Contract("filter_form_incomplete"));
+            }
         }
         objects += 1;
         let id = objects as i64;
@@ -721,7 +824,15 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
         if budget.common && path.starts_with("CommonModules/") && owner.is_none() {
             return Err(Error::Contract("common_module_owner"));
         }
-        if budget.companions && super::companion_writer::companion_file(&path) && owner.is_none() {
+        if budget.companions
+            && (super::companion_writer::companion_file(&path)
+                || (budget
+                    .bin_policy
+                    .as_ref()
+                    .is_some_and(|p| p.processor_help.is_some())
+                    && super::navigator_sppr::filter_companion_path(&path)))
+            && owner.is_none()
+        {
             return Err(Error::Contract("companion_module_owner"));
         }
         modules += 1;
@@ -778,6 +889,17 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
     let mut result = json!({"temporary":true,"objects":objects,"modules":modules,"owner_unconfirmed":unconfirmed,"parse_counts":statuses,
         "xml_unverified":coverage.iter().map(|u|json!({"path":u.path,"selector":u.selector})).collect::<Vec<_>>(),
         "relations":"not_analyzed","semantics":"not_analyzed"});
+    if budget
+        .bin_policy
+        .as_ref()
+        .is_some_and(|p| p.processor_help.is_some())
+    {
+        let mut q = db.prepare("SELECT kind, COUNT(*) FROM objects o WHERE o.kind IN ('CommonPicture','XDTOPackage') AND NOT EXISTS(SELECT 1 FROM companion_payloads p WHERE p.object_id=o.object_id) GROUP BY kind ORDER BY kind")?;
+        let missing = q
+            .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, u64>(1)?)))?
+            .collect::<std::result::Result<BTreeMap<_, _>, _>>()?;
+        result["missing_opaque_payloads"] = json!({"status":"missing_in_export","by_kind":missing});
+    }
     if let Some(cap) = budget.bin_policy.as_ref().and_then(|p| p.diagnostics) {
         result.as_object_mut().unwrap().remove("xml_unverified");
         result["xml_diagnostics"] =
@@ -857,6 +979,15 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
     )?;
     Ok(result)
 }
+fn omitted_template(budget: &Budget, descriptor: &str) -> bool {
+    descriptor.strip_suffix(".xml").is_some_and(|p| {
+        budget.bin_policy.as_ref().is_some_and(|policy| {
+            policy
+                .omitted_templates
+                .contains(&format!("{p}/Ext/Template.bin"))
+        })
+    })
+}
 fn read_xml(
     db: &Connection,
     path: &str,
@@ -911,6 +1042,10 @@ fn read_xml(
             budget.workflows,
             budget.corpus,
             budget.bin_policy.as_ref().is_some_and(|b| b.configuration),
+            budget
+                .bin_policy
+                .as_ref()
+                .is_some_and(|p| p.processor_help.is_some()),
         )
     } else {
         xml221::inspect_file(path, &bytes, kind, expected, &modules)
@@ -949,7 +1084,12 @@ fn record_object(
             db.execute("INSERT INTO inline_declarations(declaration_key,owner_id,parent_key,kind,name,uuid,xml_path,byte_start,byte_end) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",params![d.key,id,d.parent,d.kind,d.name,d.uuid,d.path,d.start as i64,d.end as i64])?;
             let legacy_required = (budget.journals && obj.kind == Kind::DocumentJournal)
                 || (budget.reports && super::report_writer::is_kind(obj.kind))
-                || (budget.workflows && obj.kind == Kind::Task);
+                || (budget.workflows && obj.kind == Kind::Task)
+                || (budget
+                    .bin_policy
+                    .as_ref()
+                    .is_some_and(|p| p.processor_help.is_some())
+                    && obj.kind == Kind::Descriptor(xml221::DescriptorKind::FilterCriterion));
             let exact_optional = budget.bin_policy.as_ref().is_some_and(|p| p.command_owners)
                 && matches!(
                     obj.kind,

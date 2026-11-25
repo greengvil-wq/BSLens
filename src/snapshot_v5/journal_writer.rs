@@ -29,7 +29,7 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, false, false, false, false, false, false, false, false,
         false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(
@@ -85,6 +85,9 @@ pub fn build(
         false,
         false,
         false,
+        false,
+        false,
+        None,
     )
 }
 pub(crate) fn is_kind(k: Kind) -> bool {
@@ -94,10 +97,34 @@ pub(crate) fn is_path(path: &str) -> bool {
     matches!(path.split('/').next(), Some("Enums" | "DocumentJournals"))
 }
 pub(crate) fn validate_path(path: &str) -> Result<()> {
+    validate_path_mode(path, false)
+}
+
+pub(crate) fn validate_path_mode(path: &str, sppr: bool) -> Result<()> {
     if !is_path(path) {
         return Ok(());
     }
     let p: Vec<_> = path.split('/').collect();
+    if sppr
+        && p[0] == "Enums"
+        && matches!(p.as_slice(),
+        [_, _, "Forms", name] if name.ends_with(".xml"))
+    {
+        return Ok(());
+    }
+    if sppr
+        && p[0] == "Enums"
+        && (matches!(
+            p.as_slice(),
+            [_, _, "Forms", _, "Ext", "Form.xml" | "Help.xml"]
+        ) || matches!(
+            p.as_slice(),
+            [_, _, "Forms", _, "Ext", "Form", "Module.bsl"]
+                | [_, _, "Forms", _, "Ext", "Help", "ru.html"]
+        ))
+    {
+        return Ok(());
+    }
     let allowed = if p.len() == 2 {
         p[1].ends_with(".xml")
     } else if p.len() == 4 && p[2] == "Ext" {

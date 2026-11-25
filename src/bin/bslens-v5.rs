@@ -34,6 +34,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 | "build-source-anomalies"
                 | "build-navigator-agreement"
                 | "build-navigator-owners"
+                | "build-navigator-sppr"
         )
     }) {
         return string_command(&args);
@@ -272,6 +273,7 @@ fn read_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
                 bslens_core::snapshot_v5::source_anomalies_writer::PROFILE,
                 bslens_core::snapshot_v5::navigator_agreement_writer::PROFILE,
                 bslens_core::snapshot_v5::navigator_owners_writer::PROFILE,
+                bslens_core::snapshot_v5::navigator_sppr::PROFILE,
             ]
             .contains(&reader.info()?["profile"].as_str().unwrap_or(""))
             {
@@ -1351,12 +1353,13 @@ fn string_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
             annotated_vars_writer, async_casing_writer, corpus_writer, dates_members_writer,
             header_forms_writer, lexical_tail_writer, literal_writer, long_headers_writer,
             method_regions_writer, mobile_vars_writer, navigator_agreement_writer,
-            navigator_owners_writer, refined_writer, source_anomalies_writer, source_limits_writer,
-            streaming_facts, string_writer, wrapped_writer, Limits,
+            navigator_owners_writer, navigator_sppr, refined_writer, source_anomalies_writer,
+            source_limits_writer, streaming_facts, string_writer, wrapped_writer, Limits,
         },
     };
-    if args.len() != 22 {
-        return Err("Использование: bslens-v5 {build-strings|build-literals|build-wrapped-headers|build-corpus-refinements|build-annotated-vars|build-dates-members|build-async-casing|build-mobile-vars|build-method-regions|build-header-forms|build-source-limits|build-long-headers|build-lexical-tail|build-source-anomalies|build-navigator-agreement|build-navigator-owners} REPO FULL_COMMIT EXPECTED_TREE SOURCE_ID OUTPUT_DIR MAX_SOURCES MAX_SOURCE_BYTES MAX_TOTAL_BYTES MAX_SQLITE_BYTES GIT_ENTRIES GIT_TREES GIT_READS GIT_OBJECT_BYTES GIT_TOTAL_BYTES GIT_DEADLINE_MS MAX_FACTS MAX_COVERAGE_BYTES FACTS_TIME_MS GLOBAL_OPAQUE_JSON MAX_OPAQUE_BIN_BYTES MAX_DIAGNOSTICS_BYTES".into());
+    let report_resources = args[0] == "build-navigator-sppr";
+    if args.len() != if report_resources { 23 } else { 22 } {
+        return Err("Использование: bslens-v5 {build-strings|build-literals|build-wrapped-headers|build-corpus-refinements|build-annotated-vars|build-dates-members|build-async-casing|build-mobile-vars|build-method-regions|build-header-forms|build-source-limits|build-long-headers|build-lexical-tail|build-source-anomalies|build-navigator-agreement|build-navigator-owners} REPO FULL_COMMIT EXPECTED_TREE SOURCE_ID OUTPUT_DIR MAX_SOURCES MAX_SOURCE_BYTES MAX_TOTAL_BYTES MAX_SQLITE_BYTES GIT_ENTRIES GIT_TREES GIT_READS GIT_OBJECT_BYTES GIT_TOTAL_BYTES GIT_DEADLINE_MS MAX_FACTS MAX_COVERAGE_BYTES FACTS_TIME_MS GLOBAL_OPAQUE_JSON MAX_OPAQUE_BIN_BYTES MAX_DIAGNOSTICS_BYTES; build-navigator-sppr: те же аргументы + PROCESSOR_HELP_OWNERS_JSON".into());
     }
     let opaque = corpus_writer::parse_global_opaque(&args[19])?;
     let build = match args[0].as_str() {
@@ -1390,40 +1393,64 @@ fn string_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         "build-source-anomalies" => source_anomalies_writer::PROFILE,
         "build-navigator-agreement" => navigator_agreement_writer::PROFILE,
         "build-navigator-owners" => navigator_owners_writer::PROFILE,
+        "build-navigator-sppr" => navigator_sppr::PROFILE,
         "build-corpus-refinements" => refined_writer::PROFILE,
         "build-wrapped-headers" => wrapped_writer::PROFILE,
         "build-literals" => literal_writer::PROFILE,
         _ => string_writer::PROFILE,
     };
-    let result = build(
-        std::path::Path::new(&args[1]),
-        &args[2],
-        &args[3],
-        &args[4],
-        std::path::Path::new(&args[5]),
-        streaming_facts::Limits {
-            sources: Limits {
-                source_count: args[6].parse()?,
-                source_bytes: args[7].parse()?,
-                total_source_bytes: args[8].parse()?,
-                sqlite_bytes: args[9].parse()?,
-            },
-            facts: args[16].parse()?,
-            coverage_bytes: args[17].parse()?,
-            time: std::time::Duration::from_millis(args[18].parse()?),
+    let repo = std::path::Path::new(&args[1]);
+    let output = std::path::Path::new(&args[5]);
+    let stream = streaming_facts::Limits {
+        sources: Limits {
+            source_count: args[6].parse()?,
+            source_bytes: args[7].parse()?,
+            total_source_bytes: args[8].parse()?,
+            sqlite_bytes: args[9].parse()?,
         },
-        ingest::Limits {
-            entries: args[10].parse()?,
-            trees: args[11].parse()?,
-            reads: args[12].parse()?,
-            object_bytes: args[13].parse()?,
-            total_bytes: args[14].parse()?,
-            deadline: std::time::Duration::from_millis(args[15].parse()?),
-        },
-        &opaque,
-        args[20].parse()?,
-        args[21].parse()?,
-    )?;
+        facts: args[16].parse()?,
+        coverage_bytes: args[17].parse()?,
+        time: std::time::Duration::from_millis(args[18].parse()?),
+    };
+    let git = ingest::Limits {
+        entries: args[10].parse()?,
+        trees: args[11].parse()?,
+        reads: args[12].parse()?,
+        object_bytes: args[13].parse()?,
+        total_bytes: args[14].parse()?,
+        deadline: std::time::Duration::from_millis(args[15].parse()?),
+    };
+    let bin = args[20].parse()?;
+    let diagnostics = args[21].parse()?;
+    let result = if report_resources {
+        let owners = navigator_sppr::parse_owners(&args[22])?;
+        navigator_sppr::build(
+            repo,
+            &args[2],
+            &args[3],
+            &args[4],
+            output,
+            stream,
+            git,
+            &opaque,
+            bin,
+            diagnostics,
+            &owners,
+        )
+    } else {
+        build(
+            repo,
+            &args[2],
+            &args[3],
+            &args[4],
+            output,
+            stream,
+            git,
+            &opaque,
+            bin,
+            diagnostics,
+        )
+    }?;
     println!(
         "{}",
         serde_json::json!({"path":result.path,"snapshot_id":result.snapshot_id,"facts_sha256":result.facts_sha256,"file_sha256":result.file_sha256,"reused":result.reused,"profile":profile,"experimental":true})

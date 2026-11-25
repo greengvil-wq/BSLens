@@ -10,7 +10,7 @@ pub(super) fn validate_metadata(db: &rusqlite::Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, false, false, false, false, false, false, false, false, false, false,
         false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(
@@ -66,6 +66,9 @@ pub fn build(
         false,
         false,
         false,
+        false,
+        false,
+        None,
     )
 }
 
@@ -139,6 +142,7 @@ pub(crate) fn record_payloads<F: FnMut() -> Result<()>>(
     path: &str,
     kind: Kind,
     id: i64,
+    omitted_bin: bool,
     mut charge: F,
 ) -> Result<()> {
     let prefix = format!(
@@ -187,6 +191,9 @@ pub(crate) fn record_payloads<F: FnMut() -> Result<()>>(
             "INSERT INTO companion_payloads(path,object_id,role) VALUES (?1,?2,?3)",
             params![p, id, role],
         )?;
+    }
+    if kind == Kind::CommonTemplate && omitted_bin {
+        primary += 1;
     }
     if kind != Kind::CommonCommand && primary != 1 {
         return Err(Error::Contract("shared_payload_missing"));

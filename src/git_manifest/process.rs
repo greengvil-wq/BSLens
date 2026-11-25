@@ -17,6 +17,7 @@ pub(super) struct Shell {
     path: PathBuf,
     objects: PathBuf,
     batch: Option<Batch>,
+    sizes: Option<Batch>,
 }
 impl Shell {
     pub(super) fn new(objects: &Path, oid_len: usize) -> Result<Self> {
@@ -49,6 +50,7 @@ impl Shell {
             path: path.ok_or_else(|| err(Code::Layout))?,
             objects: objects.into(),
             batch: None,
+            sizes: None,
         };
         io(fs::create_dir(shell.path.join("objects")))?;
         io(fs::create_dir(shell.path.join("refs")))?;
@@ -64,7 +66,7 @@ impl Shell {
         io(fs::write(shell.path.join("config"), config))?;
         Ok(shell)
     }
-    fn command(&self) -> Result<Command> {
+    fn command(&self, header_only: bool) -> Result<Command> {
         // Linux-only resolver for R03. Future Windows backend needs separately reviewed trust rules.
         if !cfg!(target_os = "linux") {
             return Err(err(Code::UnsupportedPlatform));
@@ -85,7 +87,14 @@ impl Shell {
             .arg("--no-replace-objects")
             .arg("--git-dir")
             .arg(&self.path)
-            .args(["cat-file", "--batch"])
+            .args([
+                "cat-file",
+                if header_only {
+                    "--batch-check"
+                } else {
+                    "--batch"
+                },
+            ])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
@@ -99,11 +108,23 @@ impl Shell {
         deadline: Instant,
     ) -> Result<Vec<u8>> {
         if self.batch.is_none() {
-            self.batch = Some(Batch::spawn(self.command()?, deadline)?);
+            self.batch = Some(Batch::spawn(self.command(false)?, deadline)?);
         }
         self.batch.as_mut().unwrap().read(oid, kind, cap, deadline)
     }
+    pub(super) fn size(&mut self, oid: &str, kind: &str, deadline: Instant) -> Result<usize> {
+        if self.sizes.is_none() {
+            self.sizes = Some(Batch::spawn(self.command(true)?, deadline)?);
+        }
+        self.sizes
+            .as_mut()
+            .ok_or_else(|| err(Code::Process))?
+            .size(oid, kind, deadline)
+    }
     pub(super) fn finish(&mut self, deadline: Instant) -> Result<()> {
+        if let Some(sizes) = &mut self.sizes {
+            sizes.finish(deadline)?;
+        }
         self.batch
             .as_mut()
             .ok_or_else(|| err(Code::Process))?
@@ -113,6 +134,7 @@ impl Shell {
 impl Drop for Shell {
     fn drop(&mut self) {
         drop(self.batch.take());
+        drop(self.sizes.take());
         let _ = fs::remove_dir_all(&self.path);
     }
 }
@@ -123,7 +145,7 @@ enum Request {
     Object {
         oid: String,
         kind: String,
-        cap: usize,
+        cap: Option<usize>,
     },
     Finish,
 }
@@ -161,7 +183,13 @@ impl Batch {
                                     .map_err(|_| err(Code::Process))?;
                                 stdin.write_all(b"\n").map_err(|_| err(Code::Process))?;
                                 stdin.flush().map_err(|_| err(Code::Process))?;
-                                read_reply(&mut stdout, &oid, &kind, cap)
+                                if let Some(cap) = cap {
+                                    read_reply(&mut stdout, &oid, &kind, cap)
+                                } else {
+                                    let (_, size) =
+                                        read_header(&mut stdout, &oid, &kind, usize::MAX)?;
+                                    Ok(size.to_be_bytes().to_vec())
+                                }
                             })();
                             let failed = result.is_err();
                             if replies.send(result).is_err() || failed {
@@ -232,10 +260,23 @@ impl Batch {
             Request::Object {
                 oid: oid.into(),
                 kind: kind.into(),
-                cap,
+                cap: Some(cap),
             },
             deadline,
         )
+    }
+    fn size(&mut self, oid: &str, kind: &str, deadline: Instant) -> Result<usize> {
+        let bytes = self.exchange(
+            Request::Object {
+                oid: oid.into(),
+                kind: kind.into(),
+                cap: None,
+            },
+            deadline,
+        )?;
+        Ok(usize::from_be_bytes(
+            bytes.try_into().map_err(|_| err(Code::Process))?,
+        ))
     }
     fn finish(&mut self, deadline: Instant) -> Result<()> {
         self.exchange(Request::Finish, deadline)?;
@@ -287,7 +328,12 @@ impl Drop for Batch {
     }
 }
 
-fn read_reply<R: BufRead>(input: &mut R, oid: &str, kind: &str, cap: usize) -> Result<Vec<u8>> {
+fn read_header<R: BufRead>(
+    input: &mut R,
+    oid: &str,
+    kind: &str,
+    cap: usize,
+) -> Result<(Vec<u8>, usize)> {
     // Header must be complete within 128 bytes including LF, before allocation
     // based on its size. BufReader retains the rest of the stream for later calls.
     let mut header = Vec::with_capacity(128);
@@ -311,6 +357,11 @@ fn read_reply<R: BufRead>(input: &mut R, oid: &str, kind: &str, cap: usize) -> R
     if size > cap || parts[2] != size.to_string() {
         return Err(err(Code::Limit));
     }
+    Ok((header, size))
+}
+
+fn read_reply<R: BufRead>(input: &mut R, oid: &str, kind: &str, cap: usize) -> Result<Vec<u8>> {
+    let (mut header, size) = read_header(input, oid, kind, cap)?;
     let total = header
         .len()
         .checked_add(size)

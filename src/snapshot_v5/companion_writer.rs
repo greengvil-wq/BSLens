@@ -58,6 +58,9 @@ fn parameters(
     lexical_tail: bool,
     source_anomalies: bool,
     command_owners: bool,
+    large_templates: bool,
+    omit_command_help: bool,
+    processor_help: Option<&[String]>,
 ) -> Result<Value> {
     if git.deadline != Duration::from_millis(git.deadline.as_millis() as u64) {
         return Err(Error::Contract("ingest_deadline_milliseconds"));
@@ -82,7 +85,11 @@ fn parameters(
         "lexical_limits":{"bytes":crate::lexical::MAX_BYTES,"lines":crate::lexical::MAX_LINES,"tokens":crate::lexical::MAX_TOKENS,"region_depth":crate::lexical::MAX_REGION_DEPTH},
         "coverage":"temporary-r09","relations":"not_analyzed"});
     if let Some(bytes) = bin_bytes {
-        super::corpus_bin_writer::Policy::new(bytes, global_opaque)?;
+        super::corpus_bin_writer::Policy::with_template_limit(
+            bytes,
+            global_opaque,
+            large_templates,
+        )?;
         value["opaque_bin"] = json!({"bytes":bytes,"grammar":"owned-template-xdto-global-bin-v1"});
     }
     if context {
@@ -189,6 +196,15 @@ fn parameters(
         });
         value["source_anomaly_policy"] = json!({"algorithm":"full-mapped-inventory-agreement-v1","max_sites_per_module":1,"coordinates":"raw-lf","compiler_validation":false});
     }
+    if large_templates {
+        value["binary_template_limit"] = json!({"grammar":"exact-eligible-template-path-v1","ceiling":crate::git_manifest::ingest::MAX_TEMPLATE_BIN_BYTES});
+    }
+    if omit_command_help {
+        value["common_command_help"] = json!(super::navigator_command_help_writer::REASON);
+    }
+    if let Some(owners) = processor_help {
+        value["report_resources_policy"] = json!({"processor_help_owners":owners,"svg":"report-scd-basename-abs-v1","catalog_xml_nodes":crate::xml221::MAX_SPPR_CATALOG_NODES,"catalog_xml_events":crate::xml221::MAX_SPPR_CATALOG_EVENTS,"enum_forms":"exact-declared-v1","exchange_html":"html-template-companions-v1","exchange_modules":"only-saved-paths-v1","scd_svg_xml_budget":"bounded-32768-events-and-nodes-v1","filter_companions":"exact-declared-v1","omission_manifest":"git-blob-header-v1","absent_leaf_payloads":"picture-xdto-missing-in-export-v1"});
+    }
     if command_owners {
         value["command_owner_policy"] =
             json!("exact-inline-catalog-document-informationregister-v1");
@@ -256,7 +272,7 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     validate_metadata_mode(
         db, false, false, false, false, false, false, false, false, false, false, false, false,
         false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false, false, false,
     )
 }
 pub(super) fn validate_metadata_mode(
@@ -296,6 +312,7 @@ pub(super) fn validate_metadata_mode(
     lexical_tail: bool,
     source_anomalies: bool,
     command_owners: bool,
+    large_templates: bool,
 ) -> Result<()> {
     let (raw, stored): (String, String) = db.query_row(
         "SELECT build_parameters,limits_draft FROM metadata WHERE singleton=1",
@@ -385,6 +402,11 @@ pub(super) fn validate_metadata_mode(
         lexical_tail,
         source_anomalies,
         command_owners,
+        large_templates,
+        bin_policy.as_ref().is_some_and(|b| b.omit_command_help),
+        bin_policy
+            .as_ref()
+            .and_then(|b| b.processor_help.as_deref()),
     )? || raw != p.to_string()
         || stored != limits.json().to_string()
     {
@@ -495,6 +517,9 @@ pub fn build(
         false,
         false,
         false,
+        false,
+        false,
+        None,
     )
 }
 pub(super) fn build_mode(
@@ -541,6 +566,9 @@ pub(super) fn build_mode(
     lexical_tail: bool,
     source_anomalies: bool,
     command_owners: bool,
+    large_templates: bool,
+    omit_command_help: bool,
+    processor_help: Option<&[String]>,
 ) -> Result<BuiltSnapshot> {
     if source_id.is_empty() {
         return Err(Error::Contract("source_id"));
@@ -584,9 +612,14 @@ pub(super) fn build_mode(
         lexical_tail,
         source_anomalies,
         command_owners,
+        large_templates,
+        omit_command_help,
+        processor_help,
     )?;
     let mut bin_policy = bin_bytes
-        .map(|n| super::corpus_bin_writer::Policy::new(n, global_opaque))
+        .map(|n| {
+            super::corpus_bin_writer::Policy::with_template_limit(n, global_opaque, large_templates)
+        })
         .transpose()?;
     if let Some(p) = &mut bin_policy {
         p.root_help = root_help;
@@ -612,6 +645,7 @@ pub(super) fn build_mode(
         p.lexical_tail = lexical_tail;
         p.source_anomalies = source_anomalies;
         p.command_owners = command_owners;
+        p.processor_help = processor_help.map(<[String]>::to_vec);
     }
     let limits = stream.sources;
     let dir = publish::directory(output)?;
@@ -628,7 +662,9 @@ pub(super) fn build_mode(
     }
     db.pragma_update(None, "max_page_count", max_pages)?;
     let result = (|| -> Result<(String, String)> {
-        db.execute_batch(&if command_owners {
+        db.execute_batch(&if processor_help.is_some() {
+            super::navigator_sppr::schema()
+        } else if command_owners {
             super::navigator_owners_writer::schema()
         } else if source_anomalies && lexical_tail {
             super::navigator_agreement_writer::schema()
@@ -706,13 +742,15 @@ pub(super) fn build_mode(
         let tx = db.transaction()?;
         let (mut count, mut total) = (0u64, 0u64);
         let mut consumer_error = None;
-        let receipt = ingest::ingest_selected_capped(
+        let receipt = ingest::ingest_selected_scoped(
             repo,
             commit,
             expected_tree,
             git,
             |e| {
                 selected(e)
+                    || (processor_help.is_some()
+                        && super::navigator_sppr::filter_companion_path(&e.path))
                     || (shared && super::shared_writer::is_path(&e.path))
                     || (leaves && super::leaf_writer::is_path(&e.path))
                     || (journals && super::journal_writer::is_path(&e.path))
@@ -729,8 +767,10 @@ pub(super) fn build_mode(
                 bin_policy
                     .as_ref()
                     .filter(|b| b.eligible(&entry.path))
-                    .map(|b| b.bytes as usize)
+                    .map(|b| b.cap(&entry.path, "payload", limits.source_bytes) as usize)
             },
+            |entry| processor_help.is_some() && super::navigator_sppr::help_path(&entry.path),
+            processor_help.is_some(),
             |entry, sha, bytes| {
                 let result = (|| -> Result<()> {
                     count += 1;
@@ -754,7 +794,12 @@ pub(super) fn build_mode(
                         "INSERT INTO sources VALUES (?1,?2,?3,?4,?5,?6)",
                         params![
                             entry.path,
-                            if root_sidecars {
+                            if processor_help.is_some()
+                                && super::navigator_sppr::filter_companion_path(&entry.path)
+                                && entry.path.ends_with("/Ext/Form.xml")
+                            {
+                                "payload"
+                            } else if root_sidecars {
                                 super::sidecar_writer::source_kind(&entry.path)
                             } else if corpus {
                                 super::corpus_writer::source_kind(&entry.path)
@@ -798,6 +843,29 @@ pub(super) fn build_mode(
         let mut chosen = vec![];
         let mut excluded = vec![];
         for e in receipt.manifest.entries() {
+            if let Some((why, size)) = receipt.excluded_sizes.get(&e.path) {
+                let reason = match why {
+                    ingest::Exclusion::Help
+                        if super::navigator_command_help_writer::excluded(&e.path) =>
+                    {
+                        super::navigator_command_help_writer::REASON
+                    }
+                    ingest::Exclusion::Help
+                        if processor_help.is_some_and(|owners| {
+                            super::navigator_sppr::excluded(&e.path, owners)
+                        }) =>
+                    {
+                        super::navigator_sppr::REASON
+                    }
+                    ingest::Exclusion::Help => super::navigator_sppr::HELP_REASON,
+                    ingest::Exclusion::OversizeTemplate => super::navigator_sppr::OVERSIZE_REASON,
+                };
+                excluded.push(
+                    json!({"input":{"path":e.path,"mode":format!("{:o}",e.mode),"blob_oid":e.oid},
+                    "reason":reason,"size_bytes":size}),
+                );
+                continue;
+            }
             if corpus {
                 super::corpus_writer::validate_path(&e.path)?;
                 if super::corpus_writer::global_opaque(&e.path) && !global_opaque.contains(&e.path)
@@ -806,9 +874,9 @@ pub(super) fn build_mode(
                 }
             }
             if workflows {
-                super::workflow_writer::validate_path(&e.path)?;
+                super::workflow_writer::validate_path_mode(&e.path, processor_help.is_some())?;
             }
-            if reports {
+            if reports && !(processor_help.is_some() && super::navigator_sppr::svg_path(&e.path)) {
                 if root_help {
                     super::corpus_help_writer::validate_path(&e.path)?;
                 } else {
@@ -825,7 +893,7 @@ pub(super) fn build_mode(
                 super::service_writer::validate_path(&e.path)?;
             }
             if journals {
-                super::journal_writer::validate_path(&e.path)?;
+                super::journal_writer::validate_path_mode(&e.path, processor_help.is_some())?;
             }
             if leaves {
                 super::leaf_writer::validate_path(&e.path)?;
@@ -833,11 +901,16 @@ pub(super) fn build_mode(
             if shared {
                 super::shared_writer::validate_path(&e.path)?;
             }
-            if roots {
+            if roots
+                && !(processor_help.is_some()
+                    && super::navigator_sppr::filter_companion_path(&e.path))
+            {
                 crate::xml221::descriptor_only_path(&e.path).map_err(Error::Xml)?;
             }
             let entry = json!({"path":e.path,"mode":format!("{:o}",e.mode),"blob_oid":e.oid});
             if selected(e)
+                || (processor_help.is_some()
+                    && super::navigator_sppr::filter_companion_path(&e.path))
                 || (shared && super::shared_writer::is_path(&e.path))
                 || (leaves && super::leaf_writer::is_path(&e.path))
                 || (journals && super::journal_writer::is_path(&e.path))
@@ -861,7 +934,16 @@ pub(super) fn build_mode(
             super::corpus_writer::validate_global_sources(&tx, &normalized)?;
         }
         tx.commit()?;
-        let coverage = if let Some(policy) = bin_policy.clone() {
+        let mut coverage = if let Some(mut policy) = bin_policy.clone() {
+            policy.omitted_templates.extend(
+                receipt
+                    .excluded_sizes
+                    .iter()
+                    .filter(|(_, (reason, _))| {
+                        matches!(reason, ingest::Exclusion::OversizeTemplate)
+                    })
+                    .map(|(path, _)| path.clone()),
+            );
             streaming_facts::derive_corpus_bin(&mut db, stream, policy)?
         } else if corpus {
             streaming_facts::derive_corpus(&mut db, stream)?
@@ -888,14 +970,31 @@ pub(super) fn build_mode(
         } else {
             streaming_facts::derive_companions(&mut db, stream)?
         };
+        let input_manifest = json!({"selected":chosen,"excluded":excluded});
+        if omit_command_help {
+            super::navigator_command_help_writer::apply_coverage(&mut coverage, &input_manifest)?;
+            if let Some(owners) = processor_help {
+                super::navigator_sppr::apply_coverage(
+                    &mut coverage,
+                    &input_manifest,
+                    owners,
+                    bin_bytes.ok_or(Error::Contract("opaque_bin_bytes"))?,
+                )?;
+            }
+            Limits::check(
+                "coverage_bytes",
+                stream.coverage_bytes,
+                coverage.to_string().len() as u64,
+            )?;
+        }
         let tx = db.transaction()?;
         let date: String =
             tx.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%SZ','now')", [], |r| {
                 r.get(0)
             })?;
         tx.execute("INSERT INTO metadata VALUES (1,5,?1,'bslens-v5-pending',?2,NULL,?3,?4,?5,?6,?7,'2.21',?8,?9,?10,?11,?12,?13,'not_analyzed')",
-            params![if command_owners {super::navigator_owners_writer::PROFILE}else if source_anomalies && lexical_tail {super::navigator_agreement_writer::PROFILE}else if source_anomalies {super::source_anomalies_writer::PROFILE}else if lexical_tail {super::lexical_tail_writer::PROFILE}else if long_headers {super::long_headers_writer::PROFILE}else if source_limits {super::source_limits_writer::PROFILE}else if header_forms {super::header_forms_writer::PROFILE}else if method_regions {super::method_regions_writer::PROFILE}else if mobile_vars {super::mobile_vars_writer::PROFILE}else if async_casing {super::async_casing_writer::PROFILE}else if dates_members {super::dates_members_writer::PROFILE}else if annotated_vars {super::annotated_vars_writer::PROFILE}else if refined {super::refined_writer::PROFILE}else if wrapped {super::wrapped_writer::PROFILE}else if literals {super::literal_writer::PROFILE}else if strings {super::string_writer::PROFILE}else if conditional {super::conditional_writer::PROFILE}else if headers {super::parameter_writer::PROFILE}else if context {super::context_writer::PROFILE}else if root_sidecars {super::sidecar_writer::PROFILE}else if optional_form {super::optional_form_writer::PROFILE}else if diagnostics.is_some() {super::diagnostics_writer::PROFILE}else if configuration {super::corpus_config_writer::PROFILE}else if root_help {super::corpus_help_writer::PROFILE}else if bin_bytes.is_some() {super::corpus_bin_writer::PROFILE}else if corpus {super::corpus_writer::PROFILE}else if workflows {super::workflow_writer::PROFILE}else if reports {super::report_writer::PROFILE}else if registers {super::register_writer::PROFILE}else if charts {super::chart_writer::PROFILE}else if services {super::service_writer::PROFILE}else if journals {super::journal_writer::PROFILE}else if leaves {super::leaf_writer::PROFILE}else if shared {super::shared_writer::PROFILE}else if roots {super::root_writer::PROFILE}else if common {super::common_writer::PROFILE}else{PROFILE},date,source_id,receipt.manifest.commit(),receipt.manifest.tree(),contract::CORE,contract::ADAPTER,
-                if source_anomalies && lexical_tail {super::navigator_agreement_writer::LEXICAL}else if source_anomalies {super::source_anomalies_writer::LEXICAL}else if lexical_tail {super::lexical_tail_writer::LEXICAL}else if long_headers {super::long_headers_writer::LEXICAL}else if source_limits {super::source_limits_writer::LEXICAL}else if header_forms {super::header_forms_writer::LEXICAL}else if method_regions {super::method_regions_writer::LEXICAL}else if mobile_vars {super::mobile_vars_writer::LEXICAL}else if async_casing {super::async_casing_writer::LEXICAL}else if dates_members {super::dates_members_writer::LEXICAL}else if annotated_vars {super::annotated_vars_writer::LEXICAL}else if refined {super::refined_writer::LEXICAL}else if wrapped {super::wrapped_writer::LEXICAL}else if literals {super::literal_writer::LEXICAL}else if strings {super::string_writer::LEXICAL}else if conditional {super::conditional_writer::LEXICAL}else if headers {super::parameter_writer::LEXICAL}else if context {super::context_writer::LEXICAL}else{contract::LEXICAL},contract::SCOPE,parameters.to_string(),json!({"selected":chosen,"excluded":excluded}).to_string(),
+            params![if processor_help.is_some() {super::navigator_sppr::PROFILE}else if command_owners {super::navigator_owners_writer::PROFILE}else if source_anomalies && lexical_tail {super::navigator_agreement_writer::PROFILE}else if source_anomalies {super::source_anomalies_writer::PROFILE}else if lexical_tail {super::lexical_tail_writer::PROFILE}else if long_headers {super::long_headers_writer::PROFILE}else if source_limits {super::source_limits_writer::PROFILE}else if header_forms {super::header_forms_writer::PROFILE}else if method_regions {super::method_regions_writer::PROFILE}else if mobile_vars {super::mobile_vars_writer::PROFILE}else if async_casing {super::async_casing_writer::PROFILE}else if dates_members {super::dates_members_writer::PROFILE}else if annotated_vars {super::annotated_vars_writer::PROFILE}else if refined {super::refined_writer::PROFILE}else if wrapped {super::wrapped_writer::PROFILE}else if literals {super::literal_writer::PROFILE}else if strings {super::string_writer::PROFILE}else if conditional {super::conditional_writer::PROFILE}else if headers {super::parameter_writer::PROFILE}else if context {super::context_writer::PROFILE}else if root_sidecars {super::sidecar_writer::PROFILE}else if optional_form {super::optional_form_writer::PROFILE}else if diagnostics.is_some() {super::diagnostics_writer::PROFILE}else if configuration {super::corpus_config_writer::PROFILE}else if root_help {super::corpus_help_writer::PROFILE}else if bin_bytes.is_some() {super::corpus_bin_writer::PROFILE}else if corpus {super::corpus_writer::PROFILE}else if workflows {super::workflow_writer::PROFILE}else if reports {super::report_writer::PROFILE}else if registers {super::register_writer::PROFILE}else if charts {super::chart_writer::PROFILE}else if services {super::service_writer::PROFILE}else if journals {super::journal_writer::PROFILE}else if leaves {super::leaf_writer::PROFILE}else if shared {super::shared_writer::PROFILE}else if roots {super::root_writer::PROFILE}else if common {super::common_writer::PROFILE}else{PROFILE},date,source_id,receipt.manifest.commit(),receipt.manifest.tree(),contract::CORE,contract::ADAPTER,
+                if source_anomalies && lexical_tail {super::navigator_agreement_writer::LEXICAL}else if source_anomalies {super::source_anomalies_writer::LEXICAL}else if lexical_tail {super::lexical_tail_writer::LEXICAL}else if long_headers {super::long_headers_writer::LEXICAL}else if source_limits {super::source_limits_writer::LEXICAL}else if header_forms {super::header_forms_writer::LEXICAL}else if method_regions {super::method_regions_writer::LEXICAL}else if mobile_vars {super::mobile_vars_writer::LEXICAL}else if async_casing {super::async_casing_writer::LEXICAL}else if dates_members {super::dates_members_writer::LEXICAL}else if annotated_vars {super::annotated_vars_writer::LEXICAL}else if refined {super::refined_writer::LEXICAL}else if wrapped {super::wrapped_writer::LEXICAL}else if literals {super::literal_writer::LEXICAL}else if strings {super::string_writer::LEXICAL}else if conditional {super::conditional_writer::LEXICAL}else if headers {super::parameter_writer::LEXICAL}else if context {super::context_writer::LEXICAL}else{contract::LEXICAL},contract::SCOPE,parameters.to_string(),input_manifest.to_string(),
                 coverage.to_string(),limits.json().to_string()])?;
         contract::compatible_scope(&tx)?;
         let id = contract::snapshot_id(&tx)?;

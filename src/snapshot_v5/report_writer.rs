@@ -11,7 +11,7 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, false, false, false, false,
         false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(
@@ -67,6 +67,9 @@ pub fn build(
         false,
         false,
         false,
+        false,
+        false,
+        None,
     )
 }
 pub(crate) fn is_kind(k: Kind) -> bool {
@@ -157,6 +160,7 @@ pub(crate) fn check_companion(
     path: &str,
     kind: Kind,
     modules: usize,
+    omitted_bin: bool,
 ) -> Result<()> {
     let prefix = path
         .strip_suffix(".xml")
@@ -171,7 +175,7 @@ pub(crate) fn check_companion(
             return Err(Error::Contract("report_help_asset_orphan"));
         }
     } else if kind == Kind::Template {
-        let mut count = 0;
+        let mut count = usize::from(omitted_bin);
         for ext in ["xml", "bin", "txt"] {
             if exists(db, &format!("{prefix}/Ext/Template.{ext}"))? {
                 count += 1;

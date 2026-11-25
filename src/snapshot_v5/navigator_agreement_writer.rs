@@ -24,7 +24,7 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
         true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, false,
+        true, true, true, true, true, false, false,
     )?;
     sidecar_writer::validate_summary(db)?;
     let (count, bad): (u64, bool) = db.query_row(
@@ -109,5 +109,8 @@ pub fn build(
         true,
         true,
         false,
+        false,
+        false,
+        None,
     )
 }

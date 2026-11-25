@@ -16,7 +16,7 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, true, false, false, false, false,
         false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(
@@ -72,6 +72,9 @@ pub fn build(
         false,
         false,
         false,
+        false,
+        false,
+        None,
     )
 }
 pub(crate) fn is_kind(k: Kind) -> bool {
@@ -84,10 +87,31 @@ pub(crate) fn is_path(path: &str) -> bool {
     )
 }
 pub(crate) fn validate_path(path: &str) -> Result<()> {
+    validate_path_mode(path, false)
+}
+
+pub(crate) fn validate_path_mode(path: &str, sppr: bool) -> Result<()> {
     if !is_path(path) {
         return Ok(());
     }
     let p: Vec<_> = path.split('/').collect();
+    if sppr
+        && matches!(
+            p.as_slice(),
+            ["ExchangePlans", _, "Templates", _, "Ext", "Template.xml"]
+                | [
+                    "ExchangePlans",
+                    _,
+                    "Templates",
+                    _,
+                    "Ext",
+                    "Template",
+                    "ru.html"
+                ]
+        )
+    {
+        return Ok(());
+    }
     let allowed = (p.len() == 2 && p[1].ends_with(".xml"))
         || (p.len() == 4
             && p[2] == "Ext"
@@ -154,6 +178,7 @@ pub(crate) fn check_companion(
     path: &str,
     kind: Kind,
     modules: usize,
+    sppr: bool,
 ) -> Result<()> {
     let prefix = path
         .strip_suffix(".xml")
@@ -167,7 +192,23 @@ pub(crate) fn check_companion(
         }
         help_pair(db, prefix)?;
     } else if kind == Kind::Template && path.starts_with("ExchangePlans/") {
-        if !exists(db, &format!("{prefix}/Ext/Template.txt"))? {
+        if sppr
+            && (exists(db, &format!("{prefix}/Ext/Template.xml"))?
+                || exists(db, &format!("{prefix}/Ext/Template/ru.html"))?)
+        {
+            let descriptor: Vec<u8> = db.query_row(
+                "SELECT content FROM sources WHERE path=?1 AND kind='xml'",
+                [path],
+                |r| r.get(0),
+            )?;
+            super::navigator_sppr::template_kind(&descriptor, path, "HTMLDocument")?;
+            if !exists(db, &format!("{prefix}/Ext/Template.xml"))?
+                || !exists(db, &format!("{prefix}/Ext/Template/ru.html"))?
+                || exists(db, &format!("{prefix}/Ext/Template.txt"))?
+            {
+                return Err(Error::Contract("workflow_html_template_incomplete"));
+            }
+        } else if !exists(db, &format!("{prefix}/Ext/Template.txt"))? {
             return Err(Error::Contract("workflow_template_missing"));
         }
     } else {
