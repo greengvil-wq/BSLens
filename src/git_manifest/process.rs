@@ -186,6 +186,7 @@ impl Batch {
                                 if let Some(cap) = cap {
                                     read_reply(&mut stdout, &oid, &kind, cap)
                                 } else {
+                                    // Не выделяем буфер по размеру blob: передаём только число, тело не запрашиваем.
                                     let (_, size) =
                                         read_header(&mut stdout, &oid, &kind, usize::MAX)?;
                                     Ok(size.to_be_bytes().to_vec())

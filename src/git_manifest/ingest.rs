@@ -445,6 +445,7 @@ where
         reader.reads + entries.iter().filter(|e| select(e)).count(),
     )?;
     for entry in &entries {
+        // Дополнительная область профиля: справка учитывается только по заголовку, даже если тело не выбиралось исходным правилом.
         let help = omit_help(entry);
         if !help && !select(entry) {
             continue;
