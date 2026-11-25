@@ -15,7 +15,27 @@ fn main() {
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     use bslens_core::snapshot_v5::{build, Limits};
     let args: Vec<_> = std::env::args().skip(1).collect();
-    if args.first().is_some_and(|s| matches!(s.as_str(), "build-strings" | "build-literals" | "build-wrapped-headers" | "build-corpus-refinements" | "build-annotated-vars" | "build-dates-members" | "build-async-casing" | "build-mobile-vars" | "build-method-regions" | "build-header-forms" | "build-source-limits" | "build-long-headers" | "build-lexical-tail" | "build-source-anomalies" | "build-navigator-agreement" | "build-navigator-owners")) {
+    if args.first().is_some_and(|s| {
+        matches!(
+            s.as_str(),
+            "build-strings"
+                | "build-literals"
+                | "build-wrapped-headers"
+                | "build-corpus-refinements"
+                | "build-annotated-vars"
+                | "build-dates-members"
+                | "build-async-casing"
+                | "build-mobile-vars"
+                | "build-method-regions"
+                | "build-header-forms"
+                | "build-source-limits"
+                | "build-long-headers"
+                | "build-lexical-tail"
+                | "build-source-anomalies"
+                | "build-navigator-agreement"
+                | "build-navigator-owners"
+        )
+    }) {
         return string_command(&args);
     }
     if args.first().is_some_and(|s| s == "build-conditionals") {
@@ -1327,7 +1347,13 @@ fn conditional_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>
 fn string_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     use bslens_core::{
         git_manifest::ingest,
-        snapshot_v5::{annotated_vars_writer, async_casing_writer, corpus_writer, dates_members_writer, header_forms_writer, method_regions_writer, mobile_vars_writer, source_limits_writer, long_headers_writer, lexical_tail_writer, source_anomalies_writer, navigator_agreement_writer, navigator_owners_writer, literal_writer, refined_writer, streaming_facts, string_writer, wrapped_writer, Limits},
+        snapshot_v5::{
+            annotated_vars_writer, async_casing_writer, corpus_writer, dates_members_writer,
+            header_forms_writer, lexical_tail_writer, literal_writer, long_headers_writer,
+            method_regions_writer, mobile_vars_writer, navigator_agreement_writer,
+            navigator_owners_writer, refined_writer, source_anomalies_writer, source_limits_writer,
+            streaming_facts, string_writer, wrapped_writer, Limits,
+        },
     };
     if args.len() != 22 {
         return Err("Использование: bslens-v5 {build-strings|build-literals|build-wrapped-headers|build-corpus-refinements|build-annotated-vars|build-dates-members|build-async-casing|build-mobile-vars|build-method-regions|build-header-forms|build-source-limits|build-long-headers|build-lexical-tail|build-source-anomalies|build-navigator-agreement|build-navigator-owners} REPO FULL_COMMIT EXPECTED_TREE SOURCE_ID OUTPUT_DIR MAX_SOURCES MAX_SOURCE_BYTES MAX_TOTAL_BYTES MAX_SQLITE_BYTES GIT_ENTRIES GIT_TREES GIT_READS GIT_OBJECT_BYTES GIT_TOTAL_BYTES GIT_DEADLINE_MS MAX_FACTS MAX_COVERAGE_BYTES FACTS_TIME_MS GLOBAL_OPAQUE_JSON MAX_OPAQUE_BIN_BYTES MAX_DIAGNOSTICS_BYTES".into());

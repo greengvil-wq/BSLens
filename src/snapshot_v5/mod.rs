@@ -374,7 +374,10 @@ pub(super) fn insert_bsl(
     owner: Option<i64>,
     charge: impl FnMut(u64) -> Result<()>,
 ) -> Result<&'static str> {
-    insert_bsl_mode(db, path, bytes, owner, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, charge)
+    insert_bsl_mode(
+        db, path, bytes, owner, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, charge,
+    )
 }
 pub(super) fn insert_bsl_mode(
     db: &Connection,
@@ -420,7 +423,10 @@ pub(super) fn insert_bsl_mode(
             lexical::analyze_source_anomalies_v1(bytes)
         };
         charge(0)?;
-        checked.map(|(result, site)| { anomaly = site; result })
+        checked.map(|(result, site)| {
+            anomaly = site;
+            result
+        })
     } else if lexical_tail {
         lexical::analyze_lexical_tail_v1(bytes)
     } else if long_headers {
@@ -469,7 +475,13 @@ pub(super) fn insert_bsl_mode(
         charge(1)?;
         db.execute(
             "INSERT INTO bsl_source_anomalies VALUES (?1,?2,?3,?4,?5)",
-            params![path, site.code, site.line as i64, site.start as i64, site.end as i64],
+            params![
+                path,
+                site.code,
+                site.line as i64,
+                site.start as i64,
+                site.end as i64
+            ],
         )?;
     }
     if let Ok(analysis) = analysis {
@@ -497,7 +509,9 @@ pub(super) fn insert_bsl_mode(
             let header = if literals {
                 header
                     .strip_suffix(';')
-                    .map_or(header, |without_separator| without_separator.trim_end_matches([' ', '\t']))
+                    .map_or(header, |without_separator| {
+                        without_separator.trim_end_matches([' ', '\t'])
+                    })
             } else {
                 header
             };
@@ -551,19 +565,19 @@ pub mod parameter_writer;
 
 pub mod conditional_writer;
 
-pub mod literal_writer;
-pub mod wrapped_writer;
-pub mod refined_writer;
 pub mod annotated_vars_writer;
-pub mod dates_members_writer;
 pub mod async_casing_writer;
-pub mod mobile_vars_writer;
-pub mod method_regions_writer;
+pub mod dates_members_writer;
 pub mod header_forms_writer;
-pub mod source_limits_writer;
-pub mod long_headers_writer;
 pub mod lexical_tail_writer;
-pub mod source_anomalies_writer;
+pub mod literal_writer;
+pub mod long_headers_writer;
+pub mod method_regions_writer;
+pub mod mobile_vars_writer;
 pub mod navigator_agreement_writer;
 pub mod navigator_owners_writer;
+pub mod refined_writer;
+pub mod source_anomalies_writer;
+pub mod source_limits_writer;
 pub mod string_writer;
+pub mod wrapped_writer;

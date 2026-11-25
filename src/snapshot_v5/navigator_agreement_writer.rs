@@ -6,7 +6,8 @@ use std::path::Path;
 pub const LEXICAL: &str = "r09-navigator-agreement-v1";
 pub const PROFILE: &str = "linux-v5-navigator-agreement1-xml221-r09";
 pub(crate) fn schema() -> String {
-    let mut schema = super::lexical_tail_writer::schema().replace(super::lexical_tail_writer::PROFILE, PROFILE);
+    let mut schema =
+        super::lexical_tail_writer::schema().replace(super::lexical_tail_writer::PROFILE, PROFILE);
     schema.push_str(r#"
 CREATE TABLE bsl_source_anomalies (
     module_path TEXT PRIMARY KEY REFERENCES modules(path),
@@ -22,21 +23,8 @@ CREATE TABLE bsl_source_anomalies (
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true, true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
+        true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+        true, true, true, true, true, false,
     )?;
     sidecar_writer::validate_summary(db)?;
     let (count, bad): (u64, bool) = db.query_row(
@@ -47,7 +35,9 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     let stored: String = db.query_row("SELECT coverage_draft FROM metadata", [], |r| r.get(0))?;
     let summary: serde_json::Value = serde_json::from_str(&stored)?;
     let qualified = match summary["parse_counts"].get("parsed_with_source_anomalies") {
-        Some(v) => v.as_u64().ok_or(super::Error::Contract("source_anomaly_inventory"))?,
+        Some(v) => v
+            .as_u64()
+            .ok_or(super::Error::Contract("source_anomaly_inventory"))?,
         None => 0,
     };
     if bad || count != qualified {

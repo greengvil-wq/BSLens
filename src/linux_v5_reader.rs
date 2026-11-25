@@ -614,10 +614,12 @@ impl LinuxSnapshotReader {
             "SELECT code,physical_line,byte_start,byte_end FROM bsl_source_anomalies WHERE module_path=?1",
             [path], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?)),
         ).optional()?;
-        Ok(row.map(|(code,line,start,end)| serde_json::json!({
-            "code":code,"physical_line":line,"start_byte":start,"end_byte":end,
-            "line_units":"physical_1_based_inclusive","byte_units":"0_based_end_exclusive"
-        })))
+        Ok(row.map(|(code, line, start, end)| {
+            serde_json::json!({
+                "code":code,"physical_line":line,"start_byte":start,"end_byte":end,
+                "line_units":"physical_1_based_inclusive","byte_units":"0_based_end_exclusive"
+            })
+        }))
     }
 
     #[cfg(feature = "experimental-snapshot-mcp")]
@@ -876,9 +878,9 @@ impl LinuxSnapshotReader {
         Ok(())
     }
     fn journal_profile(&self) -> Result<bool> {
-        let profile: String = self
-            .connection
-            .query_row("SELECT profile FROM metadata", [], |r| r.get(0))?;
+        let profile: String =
+            self.connection
+                .query_row("SELECT profile FROM metadata", [], |r| r.get(0))?;
         Ok(matches!(
             profile.as_str(),
             snapshot_v5::journal_writer::PROFILE
@@ -1338,7 +1340,10 @@ fn verify_saved_sources_mode(
     })? == snapshot_v5::corpus_writer::PROFILE;
     if bin_policy.as_ref().is_some_and(|b| b.command_owners) {
         scratch.execute_batch(&snapshot_v5::navigator_owners_writer::schema())?;
-    } else if bin_policy.as_ref().is_some_and(|b| b.source_anomalies && b.lexical_tail) {
+    } else if bin_policy
+        .as_ref()
+        .is_some_and(|b| b.source_anomalies && b.lexical_tail)
+    {
         scratch.execute_batch(&snapshot_v5::navigator_agreement_writer::schema())?;
     } else if bin_policy.as_ref().is_some_and(|b| b.source_anomalies) {
         scratch.execute_batch(&snapshot_v5::source_anomalies_writer::schema())?;

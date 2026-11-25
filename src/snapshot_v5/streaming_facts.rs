@@ -739,7 +739,10 @@ fn calculate(db: &Connection, budget: &mut Budget) -> Result<Value> {
         let method_regions = budget.bin_policy.as_ref().is_some_and(|p| p.method_regions);
         let header_forms = budget.bin_policy.as_ref().is_some_and(|p| p.header_forms);
         let lexical_tail = budget.bin_policy.as_ref().is_some_and(|p| p.lexical_tail);
-        let source_anomalies = budget.bin_policy.as_ref().is_some_and(|p| p.source_anomalies);
+        let source_anomalies = budget
+            .bin_policy
+            .as_ref()
+            .is_some_and(|p| p.source_anomalies);
         let long_headers = budget.bin_policy.as_ref().is_some_and(|p| p.long_headers);
         let source_limits = budget.bin_policy.as_ref().is_some_and(|p| p.source_limits);
         let conditional = budget.bin_policy.as_ref().is_some_and(|p| p.conditional);
@@ -948,7 +951,10 @@ fn record_object(
                 || (budget.reports && super::report_writer::is_kind(obj.kind))
                 || (budget.workflows && obj.kind == Kind::Task);
             let exact_optional = budget.bin_policy.as_ref().is_some_and(|p| p.command_owners)
-                && matches!(obj.kind, Kind::Catalog | Kind::Document | Kind::InformationRegister)
+                && matches!(
+                    obj.kind,
+                    Kind::Catalog | Kind::Document | Kind::InformationRegister
+                )
                 && d.parent.is_none()
                 && d.path == obj.path;
             if (legacy_required || exact_optional) && d.kind == "Command" {

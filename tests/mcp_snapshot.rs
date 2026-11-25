@@ -10815,80 +10815,124 @@ fn pipe_strings_cli_offline_stdio_exact_opaque_evidence_and_rollback() {
 
 #[test]
 fn literal_defaults_cli_offline_stdio_exact_opaque_evidence_and_rollback() {
-    exercise_literals_and_wrapped_headers(false, false, false, false, false, false, false, false, false, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        false, false, false, false, false, false, false, false, false, false, false, false, false,
+    );
 }
 
 #[test]
 fn wrapped_headers_cli_offline_stdio_exact_ranges_and_rollback() {
-    exercise_literals_and_wrapped_headers(true, false, false, false, false, false, false, false, false, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, false, false, false, false, false, false, false, false, false, false, false, false,
+    );
 }
 
 #[test]
 fn corpus_refinements_cli_offline_stdio_exact_ranges_and_rollback() {
-    exercise_literals_and_wrapped_headers(true, true, false, false, false, false, false, false, false, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, false, false, false, false, false, false, false, false, false, false, false,
+    );
 }
 
 #[test]
 fn annotated_module_variables_cli_offline_stdio_no_phantom_methods() {
-    exercise_literals_and_wrapped_headers(true, true, true, false, false, false, false, false, false, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, false, false, false, false, false, false, false, false, false, false,
+    );
 }
 
 #[test]
 fn dates_members_cli_offline_stdio_exact_ranges_and_rollback() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, false, false, false, false, false, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, false, false, false, false, false, false, false, false, false,
+    );
 }
 
 #[test]
 fn async_casing_cli_offline_stdio_preserves_modifier_and_predecessor() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, false, false, false, false, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, false, false, false, false, false, false, false, false,
+    );
 }
 
 #[test]
 fn mobile_vars_cli_offline_stdio_exact_branch_and_no_phantom_methods() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, true, false, false, false, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, true, false, false, false, false, false, false, false,
+    );
 }
 
 #[test]
 fn method_regions_cli_offline_stdio_exact_quote_without_region_facts() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, true, true, false, false, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, true, true, false, false, false, false, false, false,
+    );
 }
 
 #[test]
 fn header_forms_cli_offline_stdio_exact_wrapped_async_and_null() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, true, true, true, false, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, true, true, true, false, false, false, false, false,
+    );
 }
 
 #[test]
 fn source_limits_cli_offline_stdio_large_body_and_exact_exceptions() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, true, true, true, true, false, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, true, true, true, true, false, false, false, false,
+    );
 }
 
 #[test]
 fn long_headers_cli_offline_stdio_exact_ordinary_and_no_relaxation() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, true, true, true, true, true, false, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, true, true, true, true, true, false, false, false,
+    );
 }
 
 #[test]
 fn lexical_tail_cli_offline_stdio_large_tokens_and_exact_chained_method() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, true, true, true, true, true, true, false, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, true, true, true, true, true, true, false, false,
+    );
 }
 
 #[test]
 fn source_anomalies_cli_offline_stdio_qualified_and_tamper() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, true, true, true, true, false, false, true, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, true, true, true, true, false, false, true, false,
+    );
 }
 
 #[test]
 fn navigator_agreement_cli_offline_stdio_combines_tail_and_qualification() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, true, true, true, true, true, true, true, false);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, true, true, true, true, true, true, true, false,
+    );
 }
 
 #[test]
 fn navigator_owners_cli_offline_stdio_binds_only_exact_root_commands() {
-    exercise_literals_and_wrapped_headers(true, true, true, true, true, true, true, true, true, true, true, true, true);
+    exercise_literals_and_wrapped_headers(
+        true, true, true, true, true, true, true, true, true, true, true, true, true,
+    );
 }
 
-fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated_vars: bool, dates_members: bool, async_casing: bool, mobile_vars: bool, method_regions: bool, header_forms: bool, source_limits: bool, long_headers: bool, lexical_tail: bool, source_anomalies: bool, command_owners: bool) {
+fn exercise_literals_and_wrapped_headers(
+    wrapped: bool,
+    refined: bool,
+    annotated_vars: bool,
+    dates_members: bool,
+    async_casing: bool,
+    mobile_vars: bool,
+    method_regions: bool,
+    header_forms: bool,
+    source_limits: bool,
+    long_headers: bool,
+    lexical_tail: bool,
+    source_anomalies: bool,
+    command_owners: bool,
+) {
     let (build_cmd, guard) = if command_owners {
         ("build-navigator-owners", "r09-navigator-agreement-v1")
     } else if source_anomalies && lexical_tail {
@@ -10923,7 +10967,8 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
     let wrapped_method = "Процедура Перенос(A, B, C,\r\n  Г, Д)\r\nКонецПроцедуры\r\n";
     let wrapped_bsl = format!("\u{feff}#Если Сервер Тогда\r\n{wrapped_method}#КонецЕсли");
     let refined_method = "Функция Длинный(\r\n  Знач A=1,\r\n  Б=\"https://example.invalid/\"\"quoted\"\"/tail\") Экспорт ;\r\nКонецФункции\r\n";
-    let refined_source = format!("\u{feff}#Если ВебКлиент И Не МобильныйКлиент Тогда\r\n{refined_method}#КонецЕсли");
+    let refined_source =
+        format!("\u{feff}#Если ВебКлиент И Не МобильныйКлиент Тогда\r\n{refined_method}#КонецЕсли");
     let after_variables = "Процедура ПослеПеременных()\r\nКонецПроцедуры\r\n";
     let variables_source = format!("\u{feff}#Если Сервер Тогда\r\n&НаКлиенте\r\nПерем A, B; // comment\r\n&НаСервере\r\nПерем C Экспорт;\r\n{after_variables}#КонецЕсли");
     let date_method = "Процедура Срок(A='20240229',\r\n B='202402291010') Экспорт\r\nObj.Процедура = '20240229010203'; // ignore '\r\nКонецПроцедуры";
@@ -10932,11 +10977,13 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
     let async_method = "Асинх Процедура Действие(Знач Ввод='20240101') Экспорт\r\nЖдать SomeCall(Ввод);\r\nКонецПроцедуры";
     let async_source = format!("\u{feff}&НаКлиенте\r\n{async_method}");
     let folded_method = "Процедура MixedCase()\r\nКонецПроцедуры\r\n";
-    let folded_source = format!("#Если нЕ (вЕбКлИеНт иЛи Сервер) Тогда\r\n{folded_method}#КонецЕсли");
+    let folded_source =
+        format!("#Если нЕ (вЕбКлИеНт иЛи Сервер) Тогда\r\n{folded_method}#КонецЕсли");
     let mobile_method = "Процедура MobileBranch()\r\nКонецПроцедуры\r\n";
     let mobile_source = format!("#Если Сервер Тогда\r\n#ИначеЕсли нЕ моБильнЫйАвтономныйСервер Или МобильноеПриложениеКлиент Тогда\r\n{mobile_method}#КонецЕсли");
     let wrapped_var_method = "Процедура AfterList()\r\nКонецПроцедуры";
-    let wrapped_var_source = format!("\u{feff}&НаКлиенте\r\nПерем A, B,\r\n C, D,\r\n E, F;\r\n{wrapped_var_method}");
+    let wrapped_var_source =
+        format!("\u{feff}&НаКлиенте\r\nПерем A, B,\r\n C, D,\r\n E, F;\r\n{wrapped_var_method}");
     let method_region_quote = "Процедура OpenAndClose()\r\n#Область Local\r\nX = 1;\r\n#КонецОбласти\r\nКонецПроцедуры\r\n";
     let method_region_source = format!("\u{feff}#Область Outer\r\n#Если Сервер Тогда\r\n{method_region_quote}#КонецЕсли\r\n#КонецОбласти");
     let null_header_method = "Процедура NullDefault(A=NuLl)\r\nКонецПроцедуры";
@@ -10949,7 +10996,8 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
     let anomaly_cr = "Процедура CrSource()\r\n// before\r// after\r\nКонецПроцедуры";
     let anomaly_blank = "Процедура BlankSource()\r\nX=\"open\r\n\r\n|finish\";\r\nКонецПроцедуры";
     let anomaly_semicolon = "Процедура SemicolonSource()\r\nКонецПроцедуры;";
-    let compound_agreement = "Процедура Compound()\r\nA.B.Процедура.Field = \"value // quote\";\r\nКонецПроцедуры;";
+    let compound_agreement =
+        "Процедура Compound()\r\nA.B.Процедура.Field = \"value // quote\";\r\nКонецПроцедуры;";
     let long_ordinary_params = (1..=17).map(|i| format!(" A{i},\r\n")).collect::<String>();
     let long_id = "Я".repeat(65);
     let chained_method = "Процедура Chain()\r\nA.B.Процедура.Field = \"Процедура \"\"Байт\"\"; //\";\r\nКонецПроцедуры";
@@ -11015,8 +11063,7 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
         // The exact one-blank fixture is still negative in every predecessor.
         // This profile qualifies it, without changing its bytes or the
         // other negative fixtures. Its raw ranges are asserted below.
-        let name = if source_anomalies
-            && *b == "Процедура P()\nX=\"open\n\n|end\";\nКонецПроцедуры"
+        let name = if source_anomalies && *b == "Процедура P()\nX=\"open\n\n|end\";\nКонецПроцедуры"
         {
             "InheritedBlank".into()
         } else {
@@ -11029,13 +11076,19 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
         // The inherited wrapped profile refuses defaults on a continuation,
         // while the refined grammar deliberately admits bounded scalar defaults.
         modules.push((
-            if refined { "WrappedDefault" } else { "BadWrapped" }.into(),
+            if refined {
+                "WrappedDefault"
+            } else {
+                "BadWrapped"
+            }
+            .into(),
             "Процедура Before()\nКонецПроцедуры\nПроцедура Bad(A=0,\n B)\nКонецПроцедуры".into(),
         ));
         if refined {
             modules.push((
                 "BadWrappedExpression".into(),
-                "Процедура Before()\nКонецПроцедуры\nПроцедура Bad(A=Call(),\n B)\nКонецПроцедуры".into(),
+                "Процедура Before()\nКонецПроцедуры\nПроцедура Bad(A=Call(),\n B)\nКонецПроцедуры"
+                    .into(),
             ));
         }
     }
@@ -11057,69 +11110,128 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
     if dates_members {
         modules.push(("Dates".into(), date_source));
         modules.push(("Member".into(), member_method.into()));
-        modules.push(("BadMember".into(), "Процедура P()\nX=Obj..Процедура;\nКонецПроцедуры".into()));
-        modules.push(("BadDate".into(), "Процедура P(A='2024-02-29')\nКонецПроцедуры".into()));
+        modules.push((
+            "BadMember".into(),
+            "Процедура P()\nX=Obj..Процедура;\nКонецПроцедуры".into(),
+        ));
+        modules.push((
+            "BadDate".into(),
+            "Процедура P(A='2024-02-29')\nКонецПроцедуры".into(),
+        ));
     }
 
     if async_casing {
         modules.push(("AsyncCase".into(), async_source));
         modules.push(("Folded".into(), folded_source));
-        modules.push(("BadAsyncServer".into(), "&НаСервере\nАсинх Процедура P()\nКонецПроцедуры".into()));
+        modules.push((
+            "BadAsyncServer".into(),
+            "&НаСервере\nАсинх Процедура P()\nКонецПроцедуры".into(),
+        ));
         // The mobile atom remains unsupported in the async predecessor.
         let unknown = if mobile_vars {
             "НеизвестныйМобильныйКлиент"
         } else {
             "МобильноеПриложениеКлиент"
         };
-        modules.push(("BadAsyncFoldedUnknown".into(), format!("#Если нЕ {unknown} Тогда\nАсинх Процедура P()\nКонецПроцедуры\n#КонецЕсли")));
+        modules.push((
+            "BadAsyncFoldedUnknown".into(),
+            format!("#Если нЕ {unknown} Тогда\nАсинх Процедура P()\nКонецПроцедуры\n#КонецЕсли"),
+        ));
     }
 
     if mobile_vars {
         modules.push(("MobileBranch".into(), mobile_source));
         modules.push(("WrappedVarList".into(), wrapped_var_source));
-        modules.push(("BadWrappedVarDirective".into(), "&НаКлиенте\nПерем A,\n#Если Сервер Тогда\n B;\n#КонецЕсли".into()));
-        modules.push(("BadMobileUnknown".into(), "#Если МобильноеПриложениеФон Тогда\nПроцедура P()\nКонецПроцедуры\n#КонецЕсли".into()));
+        modules.push((
+            "BadWrappedVarDirective".into(),
+            "&НаКлиенте\nПерем A,\n#Если Сервер Тогда\n B;\n#КонецЕсли".into(),
+        ));
+        modules.push((
+            "BadMobileUnknown".into(),
+            "#Если МобильноеПриложениеФон Тогда\nПроцедура P()\nКонецПроцедуры\n#КонецЕсли".into(),
+        ));
     }
 
     if method_regions {
         modules.push(("MethodRegion".into(), method_region_source));
-        modules.push(("BadRegionLeak".into(), "Процедура P()\n#Область Local\nКонецПроцедуры\n#КонецОбласти".into()));
+        modules.push((
+            "BadRegionLeak".into(),
+            "Процедура P()\n#Область Local\nКонецПроцедуры\n#КонецОбласти".into(),
+        ));
         modules.push(("BadRegionArm".into(), "Процедура P()\n#Если Сервер Тогда\n#Область Local\n#Иначе\n#КонецОбласти\n#КонецЕсли\nКонецПроцедуры".into()));
     }
 
     if header_forms {
         modules.push(("NullHeader".into(), null_header_method.into()));
         modules.push(("WrappedAsync".into(), wrapped_async_source));
-        modules.push(("BadWrappedRealDirective".into(), "Асинх Процедура P(A, // comment\n#Если Сервер Тогда\nB)\nКонецПроцедуры\n#КонецЕсли".into()));
-        modules.push(("BadNullExpression".into(), "Процедура P(A=Null+1)\nКонецПроцедуры".into()));
+        modules.push((
+            "BadWrappedRealDirective".into(),
+            "Асинх Процедура P(A, // comment\n#Если Сервер Тогда\nB)\nКонецПроцедуры\n#КонецЕсли"
+                .into(),
+        ));
+        modules.push((
+            "BadNullExpression".into(),
+            "Процедура P(A=Null+1)\nКонецПроцедуры".into(),
+        ));
     }
 
     if lexical_tail {
         let token_lines = format!("{}\n", "X=1;".repeat(25)).repeat(1100);
-        let heavy_module = format!("//{}\nПроцедура Filler()\n{token_lines}КонецПроцедуры\n{token_method}", "x".repeat(2*1024*1024));
+        let heavy_module = format!(
+            "//{}\nПроцедура Filler()\n{token_lines}КонецПроцедуры\n{token_method}",
+            "x".repeat(2 * 1024 * 1024)
+        );
         modules.push(("ChainedMember".into(), chained_method.into()));
         modules.push(("LargeTokens".into(), heavy_module));
-        modules.push(("BadChainedTail".into(), "Процедура P()\nA.B.Процедура.Field.More = V;\nКонецПроцедуры".into()));
+        modules.push((
+            "BadChainedTail".into(),
+            "Процедура P()\nA.B.Процедура.Field.More = V;\nКонецПроцедуры".into(),
+        ));
     }
     if long_headers {
         modules.push(("LongOrdinary".into(), long_ordinary.clone()));
-        modules.push(("BadLongAsync".into(), format!("Асинх Процедура P(\r\n{long_ordinary_params} Z)\r\nКонецПроцедуры")));
-        modules.push(("BadLongDefault".into(), format!("Процедура P(\r\n{long_ordinary_params} Z=\"{}\")\r\nКонецПроцедуры", "x".repeat(128))));
+        modules.push((
+            "BadLongAsync".into(),
+            format!("Асинх Процедура P(\r\n{long_ordinary_params} Z)\r\nКонецПроцедуры"),
+        ));
+        modules.push((
+            "BadLongDefault".into(),
+            format!(
+                "Процедура P(\r\n{long_ordinary_params} Z=\"{}\")\r\nКонецПроцедуры",
+                "x".repeat(128)
+            ),
+        ));
     }
     if source_limits {
         modules.push(("DashedBody".into(), dashed_method.into()));
         modules.push(("CommentedClient".into(), comment_source));
-        modules.push(("LargeModule".into(), format!("//{}\n{large_method}", "x".repeat(1024*1024))));
-        modules.push(("BadCommentedBranch".into(), "&НаКлиенте\n// comment\n#Если Сервер Тогда\nПроцедура P()\nКонецПроцедуры\n#КонецЕсли".into()));
-        modules.push(("BadDashedBody".into(), "Процедура P()\nX='2024/02/29';\nКонецПроцедуры".into()));
+        modules.push((
+            "LargeModule".into(),
+            format!("//{}\n{large_method}", "x".repeat(1024 * 1024)),
+        ));
+        modules.push((
+            "BadCommentedBranch".into(),
+            "&НаКлиенте\n// comment\n#Если Сервер Тогда\nПроцедура P()\nКонецПроцедуры\n#КонецЕсли"
+                .into(),
+        ));
+        modules.push((
+            "BadDashedBody".into(),
+            "Процедура P()\nX='2024/02/29';\nКонецПроцедуры".into(),
+        ));
     }
 
     if source_anomalies {
         modules.push(("AnomalyCr".into(), anomaly_cr.into()));
         modules.push(("AnomalyBlank".into(), anomaly_blank.into()));
         modules.push(("AnomalySemicolon".into(), anomaly_semicolon.into()));
-        modules.push(("BadAnomalyDivergence".into(), "Процедура P()\nX=1;\r\tКонецПроцедуры".into()));
-        modules.push(("BadAnomalyDoubleGap".into(), "Процедура P()\nX=\"open\n\n\n|end\";\nКонецПроцедуры".into()));
+        modules.push((
+            "BadAnomalyDivergence".into(),
+            "Процедура P()\nX=1;\r\tКонецПроцедуры".into(),
+        ));
+        modules.push((
+            "BadAnomalyDoubleGap".into(),
+            "Процедура P()\nX=\"open\n\n\n|end\";\nКонецПроцедуры".into(),
+        ));
     }
     if source_anomalies && lexical_tail {
         modules.push(("CompoundAgreement".into(), compound_agreement.into()));
@@ -11149,12 +11261,26 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
                 children.push_str(&command_xml("Command", "Absent", 921));
                 children.push_str(&command_xml("Attribute", "OnlyAttribute", 922));
             }
-            write(&format!("{folder}/{name}.xml"),
-                xml(kind, name, 930 + i, &format!("<ChildObjects>{children}</ChildObjects>")).as_bytes());
-            write(&format!("{folder}/{name}/Commands/Exact/Ext/CommandModule.bsl"), command_body.as_bytes());
+            write(
+                &format!("{folder}/{name}.xml"),
+                xml(
+                    kind,
+                    name,
+                    930 + i,
+                    &format!("<ChildObjects>{children}</ChildObjects>"),
+                )
+                .as_bytes(),
+            );
+            write(
+                &format!("{folder}/{name}/Commands/Exact/Ext/CommandModule.bsl"),
+                command_body.as_bytes(),
+            );
         }
         for orphan in orphan_names {
-            write(&format!("Catalogs/Shared/Commands/{orphan}/Ext/CommandModule.bsl"), command_body.as_bytes());
+            write(
+                &format!("Catalogs/Shared/Commands/{orphan}/Ext/CommandModule.bsl"),
+                command_body.as_bytes(),
+            );
         }
     }
     write(
@@ -11293,10 +11419,32 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
     } else {
         "CommonModules/Accepted/Ext/Module.bsl"
     };
-    assert_eq!(old_db.query_row("SELECT parse_status FROM modules WHERE path=?1",[refused_path],|r|r.get::<_,String>(0)).unwrap(),"unparsed");
-    assert_eq!(old_db.query_row("SELECT count(*) FROM methods WHERE module_path=?1",[refused_path],|r|r.get::<_,usize>(0)).unwrap(),0);
+    assert_eq!(
+        old_db
+            .query_row(
+                "SELECT parse_status FROM modules WHERE path=?1",
+                [refused_path],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+        "unparsed"
+    );
+    assert_eq!(
+        old_db
+            .query_row(
+                "SELECT count(*) FROM methods WHERE module_path=?1",
+                [refused_path],
+                |r| r.get::<_, usize>(0)
+            )
+            .unwrap(),
+        0
+    );
     if refined {
-        let expected = if annotated_vars { "accepted" } else { "unparsed" };
+        let expected = if annotated_vars {
+            "accepted"
+        } else {
+            "unparsed"
+        };
         assert_eq!(
             old_db.query_row(
                 "SELECT parse_status FROM modules WHERE path='CommonModules/WrappedDefault/Ext/Module.bsl'",
@@ -11308,21 +11456,61 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
     }
     if command_owners {
         let previous_owner = |path: &str| {
-            old_db.query_row("SELECT owner_id FROM modules WHERE path=?1", [path],
-                |r| r.get::<_, Option<i64>>(0)).unwrap()
+            old_db
+                .query_row("SELECT owner_id FROM modules WHERE path=?1", [path], |r| {
+                    r.get::<_, Option<i64>>(0)
+                })
+                .unwrap()
         };
         for (_, folder, name) in command_parents {
-            assert_eq!(previous_owner(&format!("{folder}/{name}/Commands/Exact/Ext/CommandModule.bsl")).is_some(), folder == "DocumentJournals");
+            assert_eq!(
+                previous_owner(&format!(
+                    "{folder}/{name}/Commands/Exact/Ext/CommandModule.bsl"
+                ))
+                .is_some(),
+                folder == "DocumentJournals"
+            );
         }
-        assert_eq!(old_db.query_row("SELECT count(*) FROM bsl_source_anomalies", [], |r| r.get::<_,u64>(0)).unwrap(), 5);
+        assert_eq!(
+            old_db
+                .query_row("SELECT count(*) FROM bsl_source_anomalies", [], |r| r
+                    .get::<_, u64>(0))
+                .unwrap(),
+            5
+        );
     } else if source_anomalies {
-        for another in ["CommonModules/AnomalyBlank/Ext/Module.bsl", "CommonModules/AnomalySemicolon/Ext/Module.bsl", "CommonModules/InheritedBlank/Ext/Module.bsl"] {
-            assert_eq!(old_db.query_row("SELECT parse_status FROM modules WHERE path=?1",[another],|r|r.get::<_,String>(0)).unwrap(),"unparsed");
+        for another in [
+            "CommonModules/AnomalyBlank/Ext/Module.bsl",
+            "CommonModules/AnomalySemicolon/Ext/Module.bsl",
+            "CommonModules/InheritedBlank/Ext/Module.bsl",
+        ] {
+            assert_eq!(
+                old_db
+                    .query_row(
+                        "SELECT parse_status FROM modules WHERE path=?1",
+                        [another],
+                        |r| r.get::<_, String>(0)
+                    )
+                    .unwrap(),
+                "unparsed"
+            );
         }
     } else if source_limits {
         let previous_status = if long_headers { "accepted" } else { "unparsed" };
-        for earlier_refusal in ["CommonModules/DashedBody/Ext/Module.bsl", "CommonModules/CommentedClient/Ext/Module.bsl"] {
-            assert_eq!(old_db.query_row("SELECT parse_status FROM modules WHERE path=?1",[earlier_refusal],|r|r.get::<_,String>(0)).unwrap(),previous_status);
+        for earlier_refusal in [
+            "CommonModules/DashedBody/Ext/Module.bsl",
+            "CommonModules/CommentedClient/Ext/Module.bsl",
+        ] {
+            assert_eq!(
+                old_db
+                    .query_row(
+                        "SELECT parse_status FROM modules WHERE path=?1",
+                        [earlier_refusal],
+                        |r| r.get::<_, String>(0)
+                    )
+                    .unwrap(),
+                previous_status
+            );
         }
     } else if header_forms {
         assert_eq!(old_db.query_row("SELECT parse_status FROM modules WHERE path='CommonModules/NullHeader/Ext/Module.bsl'",[],|r|r.get::<_,String>(0)).unwrap(),"unparsed");
@@ -11342,14 +11530,21 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
     drop(old_db);
     if source_anomalies && lexical_tail {
         let pure = run(&args("build-source-anomalies", "context-anomaly-only"));
-        assert!(pure.status.success(), "{}", String::from_utf8_lossy(&pure.stderr));
+        assert!(
+            pure.status.success(),
+            "{}",
+            String::from_utf8_lossy(&pure.stderr)
+        );
         let info: Value = serde_json::from_slice(&pure.stdout).unwrap();
         assert_ne!(info["snapshot_id"], built["snapshot_id"]);
         let db = rusqlite::Connection::open(info["path"].as_str().unwrap()).unwrap();
         let status = |name: &str| {
-            db.query_row("SELECT parse_status FROM modules WHERE path=?1",
+            db.query_row(
+                "SELECT parse_status FROM modules WHERE path=?1",
                 [format!("CommonModules/{name}/Ext/Module.bsl")],
-                |r| r.get::<_,String>(0)).unwrap()
+                |r| r.get::<_, String>(0),
+            )
+            .unwrap()
         };
         assert_eq!(status("CompoundAgreement"), "unparsed");
         assert_eq!(status("AnomalySemicolon"), "accepted");
@@ -11374,9 +11569,21 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
         let path = f.repo.join("Catalogs/Shared.xml");
         let original = fs::read_to_string(&path).unwrap();
         let duplicate = command_xml("Command", "Exact", 9999);
-        fs::write(&path, original.replace("</ChildObjects>", &format!("{duplicate}</ChildObjects>"))).unwrap();
+        fs::write(
+            &path,
+            original.replace("</ChildObjects>", &format!("{duplicate}</ChildObjects>")),
+        )
+        .unwrap();
         git(&["add", "-A"]);
-        git(&["-c","user.name=Synthetic","-c","user.email=synthetic@invalid","commit","-qm","duplicate inline declaration"]);
+        git(&[
+            "-c",
+            "user.name=Synthetic",
+            "-c",
+            "user.email=synthetic@invalid",
+            "commit",
+            "-qm",
+            "duplicate inline declaration",
+        ]);
         let rejected = args(build_cmd, "duplicate-command");
         let failed = run(&rejected);
         assert!(!failed.status.success());
@@ -11409,10 +11616,7 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
     );
     assert_eq!(previous["data"]["branch"]["status"], "accepted");
     assert_eq!(previous["data"]["items"].as_array().unwrap().len(), 2);
-    let refused = prior_peer.data(
-        "tree",
-        json!({"level":"module","module_path":refused_path}),
-    );
+    let refused = prior_peer.data("tree", json!({"level":"module","module_path":refused_path}));
     assert_eq!(refused["data"]["branch"]["status"], "unparsed");
     assert!(refused["data"]["items"].as_array().unwrap().is_empty());
     prior_peer.finish();
@@ -11452,7 +11656,11 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
     };
     if command_owners {
         let previous = verify(&f);
-        assert!(previous.status.success(), "{}", String::from_utf8_lossy(&previous.stderr));
+        assert!(
+            previous.status.success(),
+            "{}",
+            String::from_utf8_lossy(&previous.stderr)
+        );
     }
     f.built = new_snapshot;
     let o = verify(&f);
@@ -11468,7 +11676,36 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
         .query_row("SELECT coverage_draft FROM metadata", [], |r| r.get(0))
         .unwrap();
     let cov: Value = serde_json::from_str(&cov).unwrap();
-    assert_eq!(cov["parse_counts"]["accepted"], if command_owners { 28 } else if lexical_tail { 21 } else if long_headers { 19 } else if source_limits { 18 } else if header_forms { 15 } else if method_regions { 13 } else if mobile_vars { 12 } else if async_casing { 10 } else if dates_members { 8 } else if annotated_vars { 6 } else if refined { 5 } else if wrapped { 3 } else { 2 });
+    assert_eq!(
+        cov["parse_counts"]["accepted"],
+        if command_owners {
+            28
+        } else if lexical_tail {
+            21
+        } else if long_headers {
+            19
+        } else if source_limits {
+            18
+        } else if header_forms {
+            15
+        } else if method_regions {
+            13
+        } else if mobile_vars {
+            12
+        } else if async_casing {
+            10
+        } else if dates_members {
+            8
+        } else if annotated_vars {
+            6
+        } else if refined {
+            5
+        } else if wrapped {
+            3
+        } else {
+            2
+        }
+    );
     assert!(cov["xml_diagnostics"]["count"].as_u64().unwrap() > 0);
     let mut peer = Peer::start(&f);
     assert_eq!(
@@ -11478,40 +11715,82 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
 
     if source_anomalies {
         let expected_qualified = if lexical_tail { 5 } else { 4 };
-        assert_eq!(cov["parse_counts"]["parsed_with_source_anomalies"], expected_qualified);
+        assert_eq!(
+            cov["parse_counts"]["parsed_with_source_anomalies"],
+            expected_qualified
+        );
         let summary = peer.data("metadata", json!({}));
-        assert_eq!(summary["snapshot"]["coverage"]["accepted_modules"], if command_owners { 28 } else if lexical_tail { 21 } else { 18 });
-        assert_eq!(summary["snapshot"]["coverage"]["parsed_with_source_anomalies_modules"], expected_qualified);
+        assert_eq!(
+            summary["snapshot"]["coverage"]["accepted_modules"],
+            if command_owners {
+                28
+            } else if lexical_tail {
+                21
+            } else {
+                18
+            }
+        );
+        assert_eq!(
+            summary["snapshot"]["coverage"]["parsed_with_source_anomalies_modules"],
+            expected_qualified
+        );
         assert_eq!(summary["snapshot"]["compiler_validation"], "not_performed");
     }
     if command_owners {
         let config = peer.data("tree", json!({"level":"configuration"}));
         for (i, (kind, folder, name)) in command_parents.iter().copied().enumerate() {
-            let group = config["data"]["items"].as_array().unwrap().iter().find(|v| v["key"] == kind).unwrap();
+            let group = config["data"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|v| v["key"] == kind)
+                .unwrap();
             let objects = peer.data("tree", group["children"].clone());
-            let object = objects["data"]["items"].as_array().unwrap().iter().find(|v| v["name"] == name).unwrap();
+            let object = objects["data"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|v| v["name"] == name)
+                .unwrap();
             let id = object["key"].as_str().unwrap().parse::<i64>().unwrap();
             let object_tree = peer.data("tree", object["children"].clone());
-            let inline_group = object_tree["data"]["items"].as_array().unwrap().iter()
-                .find(|v| v["type"] == "inline_group").unwrap();
+            let inline_group = object_tree["data"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|v| v["type"] == "inline_group")
+                .unwrap();
             let inline = peer.data("tree", inline_group["children"].clone());
             let items = inline["data"]["items"].as_array().unwrap();
-            let exact = items.iter().find(|v| v["kind"] == "Command" && v["name"] == "Exact").unwrap();
+            let exact = items
+                .iter()
+                .find(|v| v["kind"] == "Command" && v["name"] == "Exact")
+                .unwrap();
             let module = format!("{folder}/{name}/Commands/Exact/Ext/CommandModule.bsl");
             assert_eq!(exact["owner_id"], id);
             assert!(exact["parent_key"].is_null());
             assert_eq!(exact["path"], format!("{folder}/{name}.xml"));
             assert_eq!(exact["module_path"], module);
-            assert_eq!(bytes(&peer.data("source", exact["source"].clone())["data"]),
-                command_xml("Command","Exact",910+i).as_bytes());
-            let listed = object_tree["data"]["items"].as_array().unwrap().iter().find(|v| v["key"] == module).unwrap();
+            assert_eq!(
+                bytes(&peer.data("source", exact["source"].clone())["data"]),
+                command_xml("Command", "Exact", 910 + i).as_bytes()
+            );
+            let listed = object_tree["data"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|v| v["key"] == module)
+                .unwrap();
             assert_eq!(listed["owner_declaration"], exact["key"]);
             let methods = peer.data("tree", exact["children"].clone());
             assert_eq!(methods["data"]["branch"]["owner_declaration"], exact["key"]);
             assert_eq!(methods["data"]["branch"]["container_object_id"], id);
             let method = &methods["data"]["items"][0];
             assert_eq!(method["name"], "run");
-            assert_eq!(bytes(&peer.data("source", method["source"].clone())["data"]),command_body.as_bytes());
+            assert_eq!(
+                bytes(&peer.data("source", method["source"].clone())["data"]),
+                command_body.as_bytes()
+            );
             if kind == "Catalog" {
                 for name in ["CaseOnly", "Absent", "OnlyAttribute"] {
                     let no_link = items.iter().find(|v| v["name"] == name).unwrap();
@@ -11523,9 +11802,18 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
         let unknown = peer.data("tree", json!({"level":"unconfirmed"}));
         for orphan in orphan_names {
             let path = format!("Catalogs/Shared/Commands/{orphan}/Ext/CommandModule.bsl");
-            assert!(unknown["data"]["items"].as_array().unwrap().iter().any(|v| v["key"] == path));
+            assert!(unknown["data"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|v| v["key"] == path));
         }
-        assert_eq!(db.query_row("SELECT count(*) FROM inline_module_owners", [], |r| r.get::<_,u64>(0)).unwrap(), 4);
+        assert_eq!(
+            db.query_row("SELECT count(*) FROM inline_module_owners", [], |r| r
+                .get::<_, u64>(0))
+                .unwrap(),
+            4
+        );
     }
     for (n, body) in &modules {
         let path = format!("CommonModules/{n}/Ext/Module.bsl");
@@ -11551,7 +11839,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             long_query["name_exact"] = json!(long_name.to_lowercase());
             let long_method = peer.data("tree", long_query);
             assert_eq!(long_method["data"]["items"].as_array().unwrap().len(), 1);
-            assert_eq!(long_method["data"]["items"][0]["location"]["exported"], true);
+            assert_eq!(
+                long_method["data"]["items"][0]["location"]["exported"],
+                true
+            );
             assert_eq!(
                 bytes(
                     &peer.data("source", long_method["data"]["items"][0]["source"].clone())["data"]
@@ -11569,11 +11860,13 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             let one = peer.data("tree", query.clone());
             let method = &one["data"]["items"][0];
             assert_eq!(method["location"]["exported"], true);
-            let exported: bool = db.query_row(
-                "SELECT exported FROM methods WHERE name='второй'",
-                [],
-                |r| r.get(0),
-            ).unwrap();
+            let exported: bool = db
+                .query_row(
+                    "SELECT exported FROM methods WHERE name='второй'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
             assert!(exported);
             assert_eq!(
                 method["location"]["conditional_evaluation"],
@@ -11611,7 +11904,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             assert_eq!(item["location"]["start_line"], 2);
             assert_eq!(item["location"]["end_line"], 4);
             assert_eq!(item["location"]["exported"], false);
-            assert_eq!(item["location"]["declaration_branch_path"][0]["block_line"], 1);
+            assert_eq!(
+                item["location"]["declaration_branch_path"][0]["block_line"],
+                1
+            );
             assert_eq!(item["location"]["declaration_branch_path"][0]["arm"], 0);
             assert_eq!(
                 bytes(&peer.data("source", item["source"].clone())["data"]),
@@ -11627,7 +11923,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             assert_eq!(item["location"]["start_line"], 2);
             assert_eq!(item["location"]["end_line"], 5);
             assert_eq!(item["location"]["exported"], true);
-            assert_eq!(item["location"]["declaration_branch_path"][0]["block_line"], 1);
+            assert_eq!(
+                item["location"]["declaration_branch_path"][0]["block_line"],
+                1
+            );
             assert_eq!(item["location"]["declaration_branch_path"][0]["arm"], 0);
             assert_eq!(
                 bytes(&peer.data("source", item["source"].clone())["data"]),
@@ -11641,7 +11940,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             let item = &items[0];
             assert_eq!(item["location"]["start_line"], 6);
             assert_eq!(item["location"]["end_line"], 7);
-            assert_eq!(item["location"]["declaration_branch_path"][0]["block_line"], 1);
+            assert_eq!(
+                item["location"]["declaration_branch_path"][0]["block_line"],
+                1
+            );
             assert_eq!(
                 bytes(&peer.data("source", item["source"].clone())["data"]),
                 after_variables.as_bytes()
@@ -11657,7 +11959,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
                 assert_eq!(item["location"]["start_line"], 2);
                 assert_eq!(item["location"]["end_line"], 5);
                 assert_eq!(item["location"]["exported"], true);
-                assert_eq!(item["location"]["declaration_branch_path"][0]["block_line"], 1);
+                assert_eq!(
+                    item["location"]["declaration_branch_path"][0]["block_line"],
+                    1
+                );
             } else {
                 assert_eq!(item["location"]["start_line"], 1);
                 assert_eq!(item["location"]["end_line"], 3);
@@ -11686,10 +11991,16 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
                 async_method
             } else {
                 assert_eq!(item["location"]["end_line"], 3);
-                assert_eq!(item["location"]["declaration_branch_path"][0]["block_line"], 1);
+                assert_eq!(
+                    item["location"]["declaration_branch_path"][0]["block_line"],
+                    1
+                );
                 folded_method
             };
-            assert_eq!(bytes(&peer.data("source", item["source"].clone())["data"]), expected.as_bytes());
+            assert_eq!(
+                bytes(&peer.data("source", item["source"].clone())["data"]),
+                expected.as_bytes()
+            );
         }
 
         if n == "WrappedVarList" || n == "MobileBranch" {
@@ -11710,7 +12021,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
                 assert_eq!(evidence["arm"], 1);
                 mobile_method
             };
-            assert_eq!(bytes(&peer.data("source", item["source"].clone())["data"]), expected.as_bytes());
+            assert_eq!(
+                bytes(&peer.data("source", item["source"].clone())["data"]),
+                expected.as_bytes()
+            );
         }
 
         if n == "MethodRegion" {
@@ -11720,8 +12034,14 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             let item = &items[0];
             assert_eq!(item["location"]["start_line"], 3);
             assert_eq!(item["location"]["end_line"], 7);
-            assert_eq!(item["location"]["declaration_branch_path"][0]["block_line"], 2);
-            assert_eq!(bytes(&peer.data("source", item["source"].clone())["data"]), method_region_quote.as_bytes());
+            assert_eq!(
+                item["location"]["declaration_branch_path"][0]["block_line"],
+                2
+            );
+            assert_eq!(
+                bytes(&peer.data("source", item["source"].clone())["data"]),
+                method_region_quote.as_bytes()
+            );
         }
 
         if n == "NullHeader" || n == "WrappedAsync" {
@@ -11740,7 +12060,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
                 assert_eq!(item["location"]["exported"], false);
                 null_header_method
             };
-            assert_eq!(bytes(&peer.data("source", item["source"].clone())["data"]), expected.as_bytes());
+            assert_eq!(
+                bytes(&peer.data("source", item["source"].clone())["data"]),
+                expected.as_bytes()
+            );
         }
 
         if n == "ChainedMember" || n == "LargeTokens" {
@@ -11757,7 +12080,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             let item = &items[0];
             assert_eq!(item["location"]["start_line"], first);
             assert_eq!(item["location"]["end_line"], last);
-            assert_eq!(bytes(&peer.data("source", item["source"].clone())["data"]), expected.as_bytes());
+            assert_eq!(
+                bytes(&peer.data("source", item["source"].clone())["data"]),
+                expected.as_bytes()
+            );
         }
 
         if n == "LongOrdinary" {
@@ -11770,7 +12096,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             assert_eq!(item["location"]["start_line"], 1);
             assert_eq!(item["location"]["end_line"], 21);
             assert_eq!(item["location"]["exported"], true);
-            assert_eq!(bytes(&peer.data("source", item["source"].clone())["data"]), long_ordinary.as_bytes());
+            assert_eq!(
+                bytes(&peer.data("source", item["source"].clone())["data"]),
+                long_ordinary.as_bytes()
+            );
         }
 
         if n == "DashedBody" || n == "CommentedClient" || n == "LargeModule" {
@@ -11785,7 +12114,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             };
             assert_eq!(item["location"]["start_line"], first);
             assert_eq!(item["location"]["end_line"], last);
-            assert_eq!(bytes(&peer.data("source", item["source"].clone())["data"]), expected.as_bytes());
+            assert_eq!(
+                bytes(&peer.data("source", item["source"].clone())["data"]),
+                expected.as_bytes()
+            );
         }
 
         if n == "CompoundAgreement" {
@@ -11793,19 +12125,32 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             query["name_exact"] = json!("compound");
             let found = peer.data("tree", query.clone());
             assert_eq!(found["data"]["branch"]["match_status"], "matched");
-            assert_eq!(found["data"]["branch"]["source_anomaly"]["code"], "method_terminal_semicolon");
+            assert_eq!(
+                found["data"]["branch"]["source_anomaly"]["code"],
+                "method_terminal_semicolon"
+            );
             let item = &found["data"]["items"][0];
             assert_eq!(item["location"]["start_line"], 1);
             assert_eq!(item["location"]["end_line"], 3);
-            assert_eq!(bytes(&peer.data("source", item["source"].clone())["data"]), compound_agreement.as_bytes());
+            assert_eq!(
+                bytes(&peer.data("source", item["source"].clone())["data"]),
+                compound_agreement.as_bytes()
+            );
         }
         if n == "InheritedBlank" {
             assert_eq!(m["structural_status"], "parsed_with_source_anomalies");
             let all = peer.data("tree", query.clone());
-            let names = all["data"]["items"].as_array().unwrap()
-                .iter().map(|v| v["name"].as_str().unwrap()).collect::<Vec<_>>();
+            let names = all["data"]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v["name"].as_str().unwrap())
+                .collect::<Vec<_>>();
             assert_eq!(names, ["before", "p"]);
-            assert_eq!(all["data"]["branch"]["source_anomaly"]["code"], "empty_opaque_physical_line");
+            assert_eq!(
+                all["data"]["branch"]["source_anomaly"]["code"],
+                "empty_opaque_physical_line"
+            );
             assert_eq!(all["data"]["branch"]["source_anomaly"]["physical_line"], 5);
             query["name_exact"] = json!("p");
             let found = peer.data("tree", query.clone());
@@ -11814,7 +12159,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             assert_eq!(item["location"]["end_line"], 7);
             let expected = &body[body.find("Процедура P()").unwrap()..];
             let quote = peer.data("source", item["source"].clone());
-            assert_eq!(quote["data"]["structural_status"], "parsed_with_source_anomalies");
+            assert_eq!(
+                quote["data"]["structural_status"],
+                "parsed_with_source_anomalies"
+            );
             assert_eq!(bytes(&quote["data"]), expected.as_bytes());
         }
         if n.starts_with("Anomaly") {
@@ -11842,7 +12190,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             let item = &items[0];
             assert_eq!(item["structural_status"], "parsed_with_source_anomalies");
             let quote = peer.data("source", item["source"].clone());
-            assert_eq!(quote["data"]["structural_status"], "parsed_with_source_anomalies");
+            assert_eq!(
+                quote["data"]["structural_status"],
+                "parsed_with_source_anomalies"
+            );
             assert_eq!(quote["data"]["source_anomaly"], *site);
             assert_eq!(bytes(&quote["data"]), body.as_bytes());
             if n == "AnomalySemicolon" {
@@ -11851,7 +12202,10 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
             query["name_exact"] = json!("missing_name");
             let miss = peer.data("tree", query.clone());
             assert_eq!(miss["data"]["branch"]["match_status"], "no_match");
-            assert_eq!(miss["data"]["branch"]["structural_status"], "parsed_with_source_anomalies");
+            assert_eq!(
+                miss["data"]["branch"]["structural_status"],
+                "parsed_with_source_anomalies"
+            );
             assert!(miss["data"]["items"].as_array().unwrap().is_empty());
         }
         if n == "WrappedDefault" {
@@ -11894,7 +12248,11 @@ fn exercise_literals_and_wrapped_headers(wrapped: bool, refined: bool, annotated
         }
         // A full module can exceed the independently unchanged MCP quote cap.
         // Its named method was checked above; here check a bounded raw slice.
-        let raw_end = if n == "LargeModule" || n == "LargeTokens" { 32 } else { body.len() };
+        let raw_end = if n == "LargeModule" || n == "LargeTokens" {
+            32
+        } else {
+            body.len()
+        };
         assert_eq!(
             bytes(
                 &peer.data(

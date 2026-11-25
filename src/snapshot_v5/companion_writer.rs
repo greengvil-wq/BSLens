@@ -103,7 +103,12 @@ fn parameters(
     }
     if literals {
         value["lexical_guard"] = json!(super::literal_writer::LEXICAL);
-        value["context_annotations"]["allowlist"] = json!(["НаКлиенте","НаСервере","НаСервереБезКонтекста","НаКлиентеНаСервереБезКонтекста"]);
+        value["context_annotations"]["allowlist"] = json!([
+            "НаКлиенте",
+            "НаСервере",
+            "НаСервереБезКонтекста",
+            "НаКлиентеНаСервереБезКонтекста"
+        ]);
         value["parameter_headers"]["grammar"] = json!("identifier-val-scalar-default-v1");
         value["parameter_headers"]["defaults"] = json!(true);
         value["string_guard"]["defaults"] = json!("single-line-only");
@@ -111,13 +116,24 @@ fn parameters(
     }
     if wrapped {
         value["lexical_guard"] = json!(super::wrapped_writer::LEXICAL);
-        value["parameter_headers"]["multiline"] = json!("two-physical-lines-with-plain-parameters-only");
+        value["parameter_headers"]["multiline"] =
+            json!("two-physical-lines-with-plain-parameters-only");
         value["wrapped_headers"] = json!({"grammar":"adjacent-after-comma-identifiers-v1","max_physical_lines":2,"defaults":false,"markers":false});
     }
     if refined {
         value["lexical_guard"] = json!(super::refined_writer::LEXICAL);
-        value["conditional_guard"]["atoms"] = json!(["Сервер","ТолстыйКлиентОбычноеПриложение","ВнешнееСоединение","ВебКлиент","МобильныйКлиент","ТонкийКлиент","ТолстыйКлиентУправляемоеПриложение","Клиент"]);
-        value["parameter_headers"]["multiline"] = json!("bounded-comma-separated-with-existing-scalar-defaults");
+        value["conditional_guard"]["atoms"] = json!([
+            "Сервер",
+            "ТолстыйКлиентОбычноеПриложение",
+            "ВнешнееСоединение",
+            "ВебКлиент",
+            "МобильныйКлиент",
+            "ТонкийКлиент",
+            "ТолстыйКлиентУправляемоеПриложение",
+            "Клиент"
+        ]);
+        value["parameter_headers"]["multiline"] =
+            json!("bounded-comma-separated-with-existing-scalar-defaults");
         value["wrapped_headers"] = json!({"grammar":"adjacent-comma-separated-scalar-v2","max_physical_lines":crate::lexical::MAX_REFINED_HEADER_LINES,"comments":false,"directives":false,"evaluation":"none"});
     }
     if annotated_vars {
@@ -138,7 +154,8 @@ fn parameters(
     }
     if method_regions {
         value["lexical_guard"] = json!(super::method_regions_writer::LEXICAL);
-        value["method_region_grammar"] = json!({"max_method_owned_depth":1,"branch_crossing":false,"facts":"none"});
+        value["method_region_grammar"] =
+            json!({"max_method_owned_depth":1,"branch_crossing":false,"facts":"none"});
     }
     if header_forms {
         value["lexical_guard"] = json!(super::header_forms_writer::LEXICAL);
@@ -173,7 +190,8 @@ fn parameters(
         value["source_anomaly_policy"] = json!({"algorithm":"full-mapped-inventory-agreement-v1","max_sites_per_module":1,"coordinates":"raw-lf","compiler_validation":false});
     }
     if command_owners {
-        value["command_owner_policy"] = json!("exact-inline-catalog-document-informationregister-v1");
+        value["command_owner_policy"] =
+            json!("exact-inline-catalog-document-informationregister-v1");
     }
     if root_sidecars {
         value["root_sidecars_guard"] = json!("catalog-document-register-root-xml-opaque-v1");
@@ -237,21 +255,8 @@ fn parameters(
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     validate_metadata_mode(
         db, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
+        false, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false, false,
     )
 }
 pub(super) fn validate_metadata_mode(

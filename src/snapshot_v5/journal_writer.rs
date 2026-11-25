@@ -28,21 +28,8 @@ CREATE INDEX inline_module_declaration ON inline_module_owners(declaration_key,m
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
+        false, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(

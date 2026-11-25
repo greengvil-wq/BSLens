@@ -525,8 +525,14 @@ fn literal_defaults_v1_is_single_line_and_does_not_evaluate() {
     assert_eq!(item.start_line, 2);
     assert_eq!(item.header_end_line, 2);
     assert_eq!(item.end_line, 3);
-    assert_eq!(&src.as_bytes()[item.header_start_byte..item.header_end_byte], span.as_bytes());
-    assert_eq!(&src.as_bytes()[item.end_byte - end.len()..item.end_byte], end.as_bytes());
+    assert_eq!(
+        &src.as_bytes()[item.header_start_byte..item.header_end_byte],
+        span.as_bytes()
+    );
+    assert_eq!(
+        &src.as_bytes()[item.end_byte - end.len()..item.end_byte],
+        end.as_bytes()
+    );
     assert!(analyze_pipe_strings_v1(src.as_bytes()).is_err());
 
     for (tail, ok) in [
@@ -597,23 +603,44 @@ fn wrapped_headers_v1_consumes_exactly_one_adjacent_plain_parameter_line() {
 
 #[test]
 fn corpus_refinements_v1_admits_only_explicit_header_and_branch_grammar() {
-    use bslens_core::lexical::{analyze_corpus_refinements_v1 as parse, analyze_wrapped_headers_v1};
+    use bslens_core::lexical::{
+        analyze_corpus_refinements_v1 as parse, analyze_wrapped_headers_v1,
+    };
     let header = "Функция P(\r\n  Знач A=2,\r\n  B=\"x\") Экспорт ;";
     let tail = "КонецФункции";
-    let src = format!("\u{feff}#Если ВебКлиент И Не МобильныйКлиент Тогда\r\n{header}\r\n{tail}\r\n#КонецЕсли");
+    let src = format!(
+        "\u{feff}#Если ВебКлиент И Не МобильныйКлиент Тогда\r\n{header}\r\n{tail}\r\n#КонецЕсли"
+    );
     let item = parse(src.as_bytes()).unwrap().boundaries.remove(0);
     assert_eq!(item.start_line, 2);
     assert_eq!(item.header_end_line, 4);
     assert_eq!(item.end_line, 5);
-    assert_eq!(&src.as_bytes()[item.header_start_byte..item.header_end_byte], header.as_bytes());
-    assert_eq!(&src.as_bytes()[item.end_byte-tail.len()..item.end_byte], tail.as_bytes());
+    assert_eq!(
+        &src.as_bytes()[item.header_start_byte..item.header_end_byte],
+        header.as_bytes()
+    );
+    assert_eq!(
+        &src.as_bytes()[item.end_byte - tail.len()..item.end_byte],
+        tail.as_bytes()
+    );
     assert_eq!(item.branch_path[0].block_line, 1);
     assert!(analyze_wrapped_headers_v1(src.as_bytes()).is_err());
 
-    for atom in ["ВебКлиент", "МобильныйКлиент", "ТонкийКлиент", "ТолстыйКлиентУправляемоеПриложение", "Клиент"] {
-        let src = format!("#Если Не ({atom} Или Сервер) Тогда\nПроцедура P()\nКонецПроцедуры\n#КонецЕсли");
+    for atom in [
+        "ВебКлиент",
+        "МобильныйКлиент",
+        "ТонкийКлиент",
+        "ТолстыйКлиентУправляемоеПриложение",
+        "Клиент",
+    ] {
+        let src = format!(
+            "#Если Не ({atom} Или Сервер) Тогда\nПроцедура P()\nКонецПроцедуры\n#КонецЕсли"
+        );
         assert!(parse(src.as_bytes()).is_ok(), "{atom}");
-        assert!(analyze_wrapped_headers_v1(src.as_bytes()).is_err(), "{atom}");
+        assert!(
+            analyze_wrapped_headers_v1(src.as_bytes()).is_err(),
+            "{atom}"
+        );
     }
     let unknown = "#Если ПохожийКлиент Тогда\nПроцедура P()\nКонецПроцедуры\n#КонецЕсли";
     assert!(parse(unknown.as_bytes()).is_err());
@@ -668,12 +695,18 @@ fn annotated_variables_v1_consume_the_annotation_without_emitting_methods() {
     assert_eq!(analysis.boundaries.len(), 1);
     let item = &analysis.boundaries[0];
     assert_eq!(item.start_line, 6);
-    assert_eq!(&src.as_bytes()[item.start_byte..item.end_byte], method.as_bytes());
+    assert_eq!(
+        &src.as_bytes()[item.start_byte..item.end_byte],
+        method.as_bytes()
+    );
     assert_eq!(item.branch_path[0].block_line, 1);
     assert!(analyze_corpus_refinements_v1(src.as_bytes()).is_err());
 
     let annotated_only = "&НаКлиенте\nПерем A;";
-    assert!(parse(annotated_only.as_bytes()).unwrap().boundaries.is_empty());
+    assert!(parse(annotated_only.as_bytes())
+        .unwrap()
+        .boundaries
+        .is_empty());
     for bad in [
         "&НаКлиенте\nПерем A=1;",
         "&НаКлиенте\nПерем A, B Экспорт;",
@@ -689,19 +722,27 @@ fn annotated_variables_v1_consume_the_annotation_without_emitting_methods() {
         "&НаКлиенте\nПерем A; Процедура Fake()",
         "Процедура P()\n&НаКлиенте\nПерем A;\nКонецПроцедуры",
     ] {
-        let src = format!("Процедура Before()\nКонецПроцедуры\n{bad}\nПроцедура After()\nКонецПроцедуры");
+        let src =
+            format!("Процедура Before()\nКонецПроцедуры\n{bad}\nПроцедура After()\nКонецПроцедуры");
         assert!(parse(src.as_bytes()).is_err(), "{bad}");
     }
-    let names = (1..=65).map(|i| format!("A{i}")).collect::<Vec<_>>().join(",");
+    let names = (1..=65)
+        .map(|i| format!("A{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
     assert_eq!(
-        parse(format!("&НаКлиенте\nПерем {names};").as_bytes()).unwrap_err().reason,
+        parse(format!("&НаКлиенте\nПерем {names};").as_bytes())
+            .unwrap_err()
+            .reason,
         bslens_core::lexical::Reason::Limit
     );
 }
 
 #[test]
 fn compact_dates_and_dotted_procedure_leave_boundaries_exact() {
-    use bslens_core::lexical::{analyze_annotated_vars_v1 as old, analyze_dates_members_v1 as parse, Reason};
+    use bslens_core::lexical::{
+        analyze_annotated_vars_v1 as old, analyze_dates_members_v1 as parse, Reason,
+    };
     let header = "Процедура P(\r\n A='20240229',\r\n B='202402291201') Экспорт";
     let method = format!("{header}\r\nX=Receiver.Процедура;\r\nY=Container[0].Процедура;\r\nZ='20240229120102';\r\nT=\"'foo' X..Процедура\"; // bad ' date\r\nКонецПроцедуры");
     let src = format!("\u{feff}#Если Сервер Тогда\r\n{method}\r\n#КонецЕсли");
@@ -710,27 +751,58 @@ fn compact_dates_and_dotted_procedure_leave_boundaries_exact() {
     let m = &result.boundaries[0];
     assert_eq!((m.start_line, m.header_end_line, m.end_line), (2, 4, 9));
     assert_eq!(m.branch_path[0].block_line, 1);
-    assert_eq!(&src.as_bytes()[m.header_start_byte..m.header_end_byte], header.as_bytes());
+    assert_eq!(
+        &src.as_bytes()[m.header_start_byte..m.header_end_byte],
+        header.as_bytes()
+    );
     assert_eq!(&src.as_bytes()[m.start_byte..m.end_byte], method.as_bytes());
-    assert_eq!(old(src.as_bytes()).unwrap_err().reason, Reason::UnsupportedCharacter);
-    assert_eq!(old("X=Receiver.Процедура;".as_bytes()).unwrap_err().reason, Reason::AmbiguousBoundary);
+    assert_eq!(
+        old(src.as_bytes()).unwrap_err().reason,
+        Reason::UnsupportedCharacter
+    );
+    assert_eq!(
+        old("X=Receiver.Процедура;".as_bytes()).unwrap_err().reason,
+        Reason::AmbiguousBoundary
+    );
     assert!(parse(b"X=\"20240229\"; // 'foo'").is_ok());
     // This pass checks the spelling, not the calendar or runtime value.
     assert!(parse(b"X='99999999';").is_ok());
 
     for bad in [
-        "X='';", "X='2024022910';", "X='202402291201022';", "X='２０２４０２２９';",
-        "X='2024-02-29';", "X='2024\n0229';", "X='20240229", "X='20240229''20240229';",
-        "X=\"text\"'20240101';", "X='20240101'\"text\";",
-        "X=A'20240229';", "X='20240229'A;", "X='20240229'2;",
+        "X='';",
+        "X='2024022910';",
+        "X='202402291201022';",
+        "X='２０２４０２２９';",
+        "X='2024-02-29';",
+        "X='2024\n0229';",
+        "X='20240229",
+        "X='20240229''20240229';",
+        "X=\"text\"'20240101';",
+        "X='20240101'\"text\";",
+        "X=A'20240229';",
+        "X='20240229'A;",
+        "X='20240229'2;",
     ] {
-        assert_eq!(parse(bad.as_bytes()).unwrap_err().reason, Reason::UnsupportedCharacter, "{bad}");
+        assert_eq!(
+            parse(bad.as_bytes()).unwrap_err().reason,
+            Reason::UnsupportedCharacter,
+            "{bad}"
+        );
     }
     for bad in [
-        ".Процедура;", "Obj..Процедура;", "Obj .Процедура;", "Obj. Процедура;",
-        "Obj.\nПроцедура;", "Obj.Процедура P()", "Obj.КонецПроцедуры;",
-        "Obj.Функция;", "Obj.Процедура..Other;", "Obj..Inner.Процедура;", "Если.Процедура;",
-        "X=Obj.Процедура; Процедура Fake()", "Процедура Outer()\nПроцедура P()",
+        ".Процедура;",
+        "Obj..Процедура;",
+        "Obj .Процедура;",
+        "Obj. Процедура;",
+        "Obj.\nПроцедура;",
+        "Obj.Процедура P()",
+        "Obj.КонецПроцедуры;",
+        "Obj.Функция;",
+        "Obj.Процедура..Other;",
+        "Obj..Inner.Процедура;",
+        "Если.Процедура;",
+        "X=Obj.Процедура; Процедура Fake()",
+        "Процедура Outer()\nПроцедура P()",
         "Процедура Bad(Процедура)\nКонецПроцедуры",
     ] {
         assert!(parse(bad.as_bytes()).is_err(), "{bad}");
@@ -739,7 +811,9 @@ fn compact_dates_and_dotted_procedure_leave_boundaries_exact() {
 
 #[test]
 fn async_headers_and_closed_casefold_keep_exact_ranges() {
-    use bslens_core::lexical::{analyze_async_casing_v1 as parse, analyze_dates_members_v1 as old, Reason};
+    use bslens_core::lexical::{
+        analyze_async_casing_v1 as parse, analyze_dates_members_v1 as old, Reason,
+    };
     let header = "Асинх Функция P(Знач A='20240229') Экспорт";
     let method = format!("{header}\r\nВозврат Ждать Call(A);\r\nКонецФункции");
     let directive = "#Если нЕ (вЕбКлИеНт иЛи сЕрВеР) Тогда";
@@ -749,16 +823,34 @@ fn async_headers_and_closed_casefold_keep_exact_ranges() {
     assert_eq!(result.boundaries.len(), 1);
     let item = &result.boundaries[0];
     assert_eq!(item.kind, "function");
-    assert_eq!((item.start_line, item.header_end_line, item.end_line), (3, 3, 5));
+    assert_eq!(
+        (item.start_line, item.header_end_line, item.end_line),
+        (3, 3, 5)
+    );
     assert_eq!(item.start_byte, prefix.len());
     assert_eq!(item.header_start_byte, prefix.len());
-    assert_eq!(&source.as_bytes()[item.start_byte..item.end_byte], method.as_bytes());
-    assert_eq!(&source.as_bytes()[item.header_start_byte..item.header_end_byte], header.as_bytes());
+    assert_eq!(
+        &source.as_bytes()[item.start_byte..item.end_byte],
+        method.as_bytes()
+    );
+    assert_eq!(
+        &source.as_bytes()[item.header_start_byte..item.header_end_byte],
+        header.as_bytes()
+    );
     let b = &item.branch_path[0];
     assert_eq!((b.block_line, b.arm), (1, 0));
-    assert_eq!(&source.as_bytes()[b.directive_start_byte..b.directive_end_byte], directive.as_bytes());
-    assert_eq!(old(source.as_bytes()).unwrap_err().reason, Reason::DirectiveUnsupported);
-    assert_eq!(old(method.as_bytes()).unwrap_err().reason, Reason::AsyncUnsupported);
+    assert_eq!(
+        &source.as_bytes()[b.directive_start_byte..b.directive_end_byte],
+        directive.as_bytes()
+    );
+    assert_eq!(
+        old(source.as_bytes()).unwrap_err().reason,
+        Reason::DirectiveUnsupported
+    );
+    assert_eq!(
+        old(method.as_bytes()).unwrap_err().reason,
+        Reason::AsyncUnsupported
+    );
     assert!(parse(method.as_bytes()).is_ok());
 
     let hidden = "X=\"Асинх Функция Fake()\"; // Асинх Процедура Fake()";
@@ -789,20 +881,34 @@ fn async_headers_and_closed_casefold_keep_exact_ranges() {
 
 #[test]
 fn async_header_budget_includes_modifier_and_prefix_gap() {
-    use bslens_core::lexical::{analyze_async_casing_v1 as parse, analyze_dates_members_v1 as old, Reason};
-    let parameters = (0..64).map(|i| {
-        if i < 34 { format!("P{i}=0") } else { format!("P{i}") }
-    }).collect::<Vec<_>>();
+    use bslens_core::lexical::{
+        analyze_async_casing_v1 as parse, analyze_dates_members_v1 as old, Reason,
+    };
+    let parameters = (0..64)
+        .map(|i| {
+            if i < 34 {
+                format!("P{i}=0")
+            } else {
+                format!("P{i}")
+            }
+        })
+        .collect::<Vec<_>>();
     // 4 declaration tokens + 64 names + 63 commas + 68 default tokens
     // = 199; the Async modifier makes it exactly 200.
-    let accepted = format!("Асинх Процедура F({})\nКонецПроцедуры", parameters.join(","));
+    let accepted = format!(
+        "Асинх Процедура F({})\nКонецПроцедуры",
+        parameters.join(",")
+    );
     assert_eq!(parse(accepted.as_bytes()).unwrap().boundaries.len(), 1);
     let mut one_more = parameters;
     one_more[63] = format!("Знач {}", one_more[63]);
     let plain = format!("Процедура F({})\nКонецПроцедуры", one_more.join(","));
     assert_eq!(old(plain.as_bytes()).unwrap().boundaries.len(), 1);
     let too_many = format!("Асинх {plain}");
-    assert_eq!(parse(too_many.as_bytes()).unwrap_err().reason, Reason::Limit);
+    assert_eq!(
+        parse(too_many.as_bytes()).unwrap_err().reason,
+        Reason::Limit
+    );
 
     let suffix = "Процедура F()";
     // Budget excludes the one-byte method name but includes the async token
@@ -818,23 +924,40 @@ fn async_header_budget_includes_modifier_and_prefix_gap() {
 
 #[test]
 fn mobile_atoms_and_wrapped_variables_are_bounded_and_lexical() {
-    use bslens_core::lexical::{analyze_async_casing_v1 as old, analyze_mobile_vars_v1 as parse, Reason};
+    use bslens_core::lexical::{
+        analyze_async_casing_v1 as old, analyze_mobile_vars_v1 as parse, Reason,
+    };
     let method = "Процедура After()\r\nКонецПроцедуры";
     let directive = "#ИначеЕсли нЕ моБильныйАвтономныйСервер Или МобильноеПриложениеКлиент Тогда";
     let source = format!("\u{feff}#Если МобильноеПриложениеСервер Тогда\r\n{directive}\r\n&НаКлиенте\r\nПерем A, B,\r\n C, D,\r\n E, F;\r\n{method}\r\n#КонецЕсли");
     let result = parse(source.as_bytes()).unwrap();
     assert_eq!(result.boundaries.len(), 1);
     let item = &result.boundaries[0];
-    assert_eq!((item.start_line, item.header_end_line, item.end_line), (7, 7, 8));
-    assert_eq!(&source.as_bytes()[item.start_byte..item.end_byte], method.as_bytes());
+    assert_eq!(
+        (item.start_line, item.header_end_line, item.end_line),
+        (7, 7, 8)
+    );
+    assert_eq!(
+        &source.as_bytes()[item.start_byte..item.end_byte],
+        method.as_bytes()
+    );
     let b = &item.branch_path[0];
     assert_eq!((b.block_line, b.arm_line, b.arm), (1, 2, 1));
-    assert_eq!(&source.as_bytes()[b.directive_start_byte..b.directive_end_byte], directive.as_bytes());
-    assert_eq!(old(source.as_bytes()).unwrap_err().reason, Reason::DirectiveUnsupported);
+    assert_eq!(
+        &source.as_bytes()[b.directive_start_byte..b.directive_end_byte],
+        directive.as_bytes()
+    );
+    assert_eq!(
+        old(source.as_bytes()).unwrap_err().reason,
+        Reason::DirectiveUnsupported
+    );
 
     let list_only = "&НаСервере\nПерем A, B, C,\n D, E,\n F, G,\n H,\n I;";
     assert!(parse(list_only.as_bytes()).unwrap().boundaries.is_empty());
-    assert_eq!(old(list_only.as_bytes()).unwrap_err().reason, Reason::AnnotationUnsupported);
+    assert_eq!(
+        old(list_only.as_bytes()).unwrap_err().reason,
+        Reason::AnnotationUnsupported
+    );
     let limit = "&НаКлиенте\nПерем A,\n B,\n C,\n D,\n E,\n F;";
     assert_eq!(parse(limit.as_bytes()).unwrap_err().reason, Reason::Limit);
     let wrapped_head = "Перем A,\n";
@@ -842,11 +965,21 @@ fn mobile_atoms_and_wrapped_variables_are_bounded_and_lexical() {
     let exact_gap = 8192 - wrapped_head.len() - wrapped_tail.len();
     let with_gap = |n| format!("&НаКлиенте\n{wrapped_head}{}{wrapped_tail}", " ".repeat(n));
     assert!(parse(with_gap(exact_gap).as_bytes()).is_ok());
-    assert_eq!(parse(with_gap(exact_gap + 1).as_bytes()).unwrap_err().reason, Reason::Limit);
-    let names = (1..64).map(|i| format!("X{i}")).collect::<Vec<_>>().join(",");
+    assert_eq!(
+        parse(with_gap(exact_gap + 1).as_bytes())
+            .unwrap_err()
+            .reason,
+        Reason::Limit
+    );
+    let names = (1..64)
+        .map(|i| format!("X{i}"))
+        .collect::<Vec<_>>()
+        .join(",");
     assert!(parse(format!("&НаКлиенте\nПерем {names},\n X64;").as_bytes()).is_ok());
     assert_eq!(
-        parse(format!("&НаКлиенте\nПерем {names},\n X64,X65;").as_bytes()).unwrap_err().reason,
+        parse(format!("&НаКлиенте\nПерем {names},\n X64,X65;").as_bytes())
+            .unwrap_err()
+            .reason,
         Reason::Limit,
     );
     for invalid in [
@@ -874,30 +1007,50 @@ fn mobile_atoms_and_wrapped_variables_are_bounded_and_lexical() {
 
 #[test]
 fn method_regions_are_owned_and_do_not_cross_methods_or_branches() {
-    use bslens_core::lexical::{analyze_method_regions_v1 as parse, analyze_mobile_vars_v1 as old, Reason};
+    use bslens_core::lexical::{
+        analyze_method_regions_v1 as parse, analyze_mobile_vars_v1 as old, Reason,
+    };
     let first = "Процедура P()\r\n#Область Local\r\nX=1;\r\n#КонецОбласти\r\nКонецПроцедуры";
     let second = "Процедура Q()\r\nКонецПроцедуры";
     let source = format!("\u{feff}#Область Outer\r\n#Если Сервер Тогда\r\n{first}\r\n{second}\r\n#КонецЕсли\r\n#КонецОбласти");
     let mut result = parse(source.as_bytes()).unwrap();
     result.boundaries.sort_by_key(|b| b.start_line);
     assert_eq!(result.boundaries.len(), 2);
-    for (b, expected, start, end) in [(&result.boundaries[0], first, 3, 7), (&result.boundaries[1], second, 8, 9)] {
+    for (b, expected, start, end) in [
+        (&result.boundaries[0], first, 3, 7),
+        (&result.boundaries[1], second, 8, 9),
+    ] {
         assert_eq!((b.start_line, b.end_line), (start, end));
-        assert_eq!(&source.as_bytes()[b.start_byte..b.end_byte], expected.as_bytes());
+        assert_eq!(
+            &source.as_bytes()[b.start_byte..b.end_byte],
+            expected.as_bytes()
+        );
         assert_eq!(b.branch_path.len(), 1);
         assert_eq!((b.branch_path[0].block_line, b.branch_path[0].arm), (2, 0));
     }
-    assert_eq!(old(source.as_bytes()).unwrap_err().reason, Reason::RegionInsideMethod);
+    assert_eq!(
+        old(source.as_bytes()).unwrap_err().reason,
+        Reason::RegionInsideMethod
+    );
     let outer_only = format!("#Область Outer\r\n{second}\r\n#КонецОбласти");
     let prev = old(outer_only.as_bytes()).unwrap().boundaries.remove(0);
     let next = parse(outer_only.as_bytes()).unwrap().boundaries.remove(0);
     assert_eq!(prev, next);
 
-    let two_sequential = "Процедура P()\n#Область X\n#КонецОбласти\n#Область Y\n#КонецОбласти\nКонецПроцедуры";
-    assert_eq!(parse(two_sequential.as_bytes()).unwrap().boundaries.len(), 1);
+    let two_sequential =
+        "Процедура P()\n#Область X\n#КонецОбласти\n#Область Y\n#КонецОбласти\nКонецПроцедуры";
+    assert_eq!(
+        parse(two_sequential.as_bytes()).unwrap().boundaries.len(),
+        1
+    );
     let outer_comments = "Процедура P()\nКонецПроцедуры";
-    let outer_comments = format!("#Область Outer // still accepted\n{outer_comments}\n#КонецОбласти // still accepted");
-    assert_eq!(old(outer_comments.as_bytes()).unwrap(), parse(outer_comments.as_bytes()).unwrap());
+    let outer_comments = format!(
+        "#Область Outer // still accepted\n{outer_comments}\n#КонецОбласти // still accepted"
+    );
+    assert_eq!(
+        old(outer_comments.as_bytes()).unwrap(),
+        parse(outer_comments.as_bytes()).unwrap()
+    );
     let bounded_arm = "Процедура P()\n#Если Сервер Тогда\n#Область Local\n#КонецОбласти\n#Иначе\nX=0;\n#КонецЕсли\nКонецПроцедуры";
     assert_eq!(parse(bounded_arm.as_bytes()).unwrap().boundaries.len(), 1);
     for invalid in [
@@ -919,7 +1072,9 @@ fn method_regions_are_owned_and_do_not_cross_methods_or_branches() {
 
 #[test]
 fn header_forms_are_bounded_and_keep_exact_async_prefix_and_end() {
-    use bslens_core::lexical::{analyze_header_forms_v1 as parse, analyze_method_regions_v1 as old, Reason};
+    use bslens_core::lexical::{
+        analyze_header_forms_v1 as parse, analyze_method_regions_v1 as old, Reason,
+    };
     let header = "Асинх Функция P(A=Null, // first\r\n B=\"https://example.invalid/\"\"q\"\"\", // middle\r\n C) Экспорт";
     let method = format!("{header} // last\r\nВозврат A;\r\nКонецФункции");
     let prefix = "\u{feff}#Если Сервер Тогда\r\n&НаКлиенте\r\n";
@@ -928,15 +1083,25 @@ fn header_forms_are_bounded_and_keep_exact_async_prefix_and_end() {
     let item = result.boundaries.remove(0);
     assert!(result.boundaries.is_empty());
     assert_eq!(item.start_byte, prefix.len());
-    assert_eq!((item.start_line, item.header_end_line, item.end_line), (3, 5, 7));
+    assert_eq!(
+        (item.start_line, item.header_end_line, item.end_line),
+        (3, 5, 7)
+    );
     assert_eq!(item.branch_path[0].block_line, 1);
-    assert_eq!(&source.as_bytes()[item.header_start_byte..item.header_end_byte], header.as_bytes());
-    assert_eq!(&source.as_bytes()[item.start_byte..item.end_byte], method.as_bytes());
+    assert_eq!(
+        &source.as_bytes()[item.header_start_byte..item.header_end_byte],
+        header.as_bytes()
+    );
+    assert_eq!(
+        &source.as_bytes()[item.start_byte..item.end_byte],
+        method.as_bytes()
+    );
     assert!(old(source.as_bytes()).is_err());
     let plain_null = "Процедура P(A=nUlL)\nКонецПроцедуры";
     assert!(parse(plain_null.as_bytes()).is_ok());
     assert!(old(plain_null.as_bytes()).is_err());
-    let comment_only_extension = "Процедура P(A=0, // comment\n B=\"//literal\") // second\nКонецПроцедуры";
+    let comment_only_extension =
+        "Процедура P(A=0, // comment\n B=\"//literal\") // second\nКонецПроцедуры";
     assert!(parse(comment_only_extension.as_bytes()).is_ok());
     assert!(old(comment_only_extension.as_bytes()).is_err());
 
@@ -958,19 +1123,34 @@ fn header_forms_are_bounded_and_keep_exact_async_prefix_and_end() {
 
     let continued = (1..=14).map(|i| format!(" A{i},\n")).collect::<String>();
     let make_lines = |extra| format!("Асинх Процедура P(\n{continued}{extra} Z)\nКонецПроцедуры");
-    assert_eq!(parse(make_lines("").as_bytes()).unwrap().boundaries[0].header_end_line, 16);
-    assert_eq!(parse(make_lines(" Extra,\n").as_bytes()).unwrap_err().reason, Reason::Limit);
+    assert_eq!(
+        parse(make_lines("").as_bytes()).unwrap().boundaries[0].header_end_line,
+        16
+    );
+    assert_eq!(
+        parse(make_lines(" Extra,\n").as_bytes())
+            .unwrap_err()
+            .reason,
+        Reason::Limit
+    );
 
     let head = "Асинх Процедура P(A,\n B) //";
     let tail_limit = 8192 + "P".len() - head.len();
     let with_comment = |n| format!("{head}{}\nКонецПроцедуры", "x".repeat(n));
     assert!(parse(with_comment(tail_limit).as_bytes()).is_ok());
-    assert_eq!(parse(with_comment(tail_limit + 1).as_bytes()).unwrap_err().reason, Reason::Limit);
+    assert_eq!(
+        parse(with_comment(tail_limit + 1).as_bytes())
+            .unwrap_err()
+            .reason,
+        Reason::Limit
+    );
 }
 
 #[test]
 fn source_limits_keep_comments_dates_and_other_budgets_exact() {
-    use bslens_core::lexical::{analyze_source_limits_v1 as parse, analyze_header_forms_v1 as old, Reason};
+    use bslens_core::lexical::{
+        analyze_header_forms_v1 as old, analyze_source_limits_v1 as parse, Reason,
+    };
     let method = "Процедура After()\r\nX='2024-02-29';\r\nКонецПроцедуры";
     let comments = " \t// #Если Сервер Тогда, fake declaration\r\n".repeat(16);
     let prefix = format!("\u{feff}&НаКлиенте\r\n{comments}");
@@ -978,25 +1158,55 @@ fn source_limits_keep_comments_dates_and_other_budgets_exact() {
     let only = parse(source.as_bytes()).unwrap().boundaries.remove(0);
     assert_eq!((only.start_line, only.end_line), (18, 20));
     assert_eq!(only.start_byte, prefix.len());
-    assert_eq!(&source.as_bytes()[only.start_byte..only.end_byte], method.as_bytes());
+    assert_eq!(
+        &source.as_bytes()[only.start_byte..only.end_byte],
+        method.as_bytes()
+    );
     assert!(old(source.as_bytes()).is_err());
     let after_var = format!("&НаКлиенте\r\n// Перем may follow\r\nПерем A;\r\n{method}");
     let var_then_method = parse(after_var.as_bytes()).unwrap();
     assert_eq!(var_then_method.boundaries.len(), 1);
     assert_eq!(var_then_method.boundaries[0].start_line, 4);
-    assert_eq!(parse(format!("{prefix}// 17th\r\n{method}").as_bytes()).unwrap_err().reason, Reason::Limit);
+    assert_eq!(
+        parse(format!("{prefix}// 17th\r\n{method}").as_bytes())
+            .unwrap_err()
+            .reason,
+        Reason::Limit
+    );
     let with_body = |row| format!("Процедура P()\n{row}\nКонецПроцедуры");
-    assert_eq!(old(with_body("X='2024-02-29';").as_bytes()).unwrap_err().reason, Reason::UnsupportedCharacter);
+    assert_eq!(
+        old(with_body("X='2024-02-29';").as_bytes())
+            .unwrap_err()
+            .reason,
+        Reason::UnsupportedCharacter
+    );
     assert!(parse(with_body("X='2024-02-29';").as_bytes()).is_ok());
     assert!(parse(with_body("X='9999-99-99';").as_bytes()).is_ok()); // shape, not calendar validity
-    assert_eq!(parse(b"X='2024-02-29';").unwrap_err().reason, Reason::UnsupportedCharacter);
+    assert_eq!(
+        parse(b"X='2024-02-29';").unwrap_err().reason,
+        Reason::UnsupportedCharacter
+    );
     // Existing compact date behavior remains unchanged in module code.
-    assert_eq!(old(b"X='20240229';").unwrap(), parse(b"X='20240229';").unwrap());
+    assert_eq!(
+        old(b"X='20240229';").unwrap(),
+        parse(b"X='20240229';").unwrap()
+    );
     for invalid_body in [
-        "X='2024--02-29';", "X='2024-2-29';", "X='2024/02/29';", "X='2024-02-2900';",
-        "X='2024-02-29'Name;", "X=\"prefix\"'2024-02-29';", "X='2024-02-29'\"suffix\";",
+        "X='2024--02-29';",
+        "X='2024-2-29';",
+        "X='2024/02/29';",
+        "X='2024-02-2900';",
+        "X='2024-02-29'Name;",
+        "X=\"prefix\"'2024-02-29';",
+        "X='2024-02-29'\"suffix\";",
     ] {
-        assert_eq!(parse(with_body(invalid_body).as_bytes()).unwrap_err().reason, Reason::UnsupportedCharacter, "{invalid_body}");
+        assert_eq!(
+            parse(with_body(invalid_body).as_bytes())
+                .unwrap_err()
+                .reason,
+            Reason::UnsupportedCharacter,
+            "{invalid_body}"
+        );
     }
     for invalid in [
         "&НаКлиенте\n// only EOF",
@@ -1013,39 +1223,71 @@ fn source_limits_keep_comments_dates_and_other_budgets_exact() {
     }
 
     let small_method = "Процедура After()\nКонецПроцедуры";
-    let make = |n: usize| format!("//{}\n{small_method}", "x".repeat(n - 3 - small_method.len()));
-    let exact = make(4*1024*1024);
-    assert_eq!(exact.len(),4*1024*1024);
+    let make = |n: usize| {
+        format!(
+            "//{}\n{small_method}",
+            "x".repeat(n - 3 - small_method.len())
+        )
+    };
+    let exact = make(4 * 1024 * 1024);
+    assert_eq!(exact.len(), 4 * 1024 * 1024);
     let item = parse(exact.as_bytes()).unwrap().boundaries.remove(0);
     assert_eq!((item.start_line, item.end_line), (2, 3));
-    assert_eq!(&exact.as_bytes()[item.start_byte..item.end_byte], small_method.as_bytes());
-    assert_eq!(parse(make(4*1024*1024+1).as_bytes()).unwrap_err().reason, Reason::Limit);
-    assert!(old(make(1024*1024).as_bytes()).is_ok());
-    assert_eq!(old(make(1024*1024+1).as_bytes()).unwrap_err().reason, Reason::Limit);
+    assert_eq!(
+        &exact.as_bytes()[item.start_byte..item.end_byte],
+        small_method.as_bytes()
+    );
+    assert_eq!(
+        parse(make(4 * 1024 * 1024 + 1).as_bytes())
+            .unwrap_err()
+            .reason,
+        Reason::Limit
+    );
+    assert!(old(make(1024 * 1024).as_bytes()).is_ok());
+    assert_eq!(
+        old(make(1024 * 1024 + 1).as_bytes()).unwrap_err().reason,
+        Reason::Limit
+    );
     let over_lines = "\n".repeat(65537);
     let over_tokens = "+;".repeat(50001);
-    assert_eq!(parse(over_lines.as_bytes()).unwrap_err().reason, Reason::Limit);
-    assert_eq!(parse(over_tokens.as_bytes()).unwrap_err().reason, Reason::Limit);
+    assert_eq!(
+        parse(over_lines.as_bytes()).unwrap_err().reason,
+        Reason::Limit
+    );
+    assert_eq!(
+        parse(over_tokens.as_bytes()).unwrap_err().reason,
+        Reason::Limit
+    );
 }
 
 #[test]
 fn long_ordinary_headers_keep_line_and_formal_exception_bounded() {
-    use bslens_core::lexical::{analyze_long_headers_v1 as parse, analyze_source_limits_v1 as old, Reason};
+    use bslens_core::lexical::{
+        analyze_long_headers_v1 as parse, analyze_source_limits_v1 as old, Reason,
+    };
     let render = |lines: usize, head: &str, last: &str| {
-        let middle = (1..=lines-2).map(|n| format!(" A{n},\r\n")).collect::<String>();
+        let middle = (1..=lines - 2)
+            .map(|n| format!(" A{n},\r\n"))
+            .collect::<String>();
         format!("{head}(\r\n{middle} {last}) Экспорт\r\nКонецПроцедуры")
     };
     let short = render(16, "Процедура P", "Z");
-    assert_eq!(parse(short.as_bytes()).unwrap(), old(short.as_bytes()).unwrap());
+    assert_eq!(
+        parse(short.as_bytes()).unwrap(),
+        old(short.as_bytes()).unwrap()
+    );
     for count in [17, 20] {
         let src = render(count, "Процедура P", "Z");
         let b = parse(src.as_bytes()).unwrap().boundaries.remove(0);
-        assert_eq!((b.start_line, b.header_end_line, b.end_line), (1,count,count+1));
+        assert_eq!(
+            (b.start_line, b.header_end_line, b.end_line),
+            (1, count, count + 1)
+        );
         assert_eq!(&src.as_bytes()[b.start_byte..b.end_byte], src.as_bytes());
         assert_eq!(old(src.as_bytes()).unwrap_err().reason, Reason::Limit);
     }
     let wide = "Я".repeat(65);
-    assert_eq!(wide.len(),130);
+    assert_eq!(wide.len(), 130);
     let accept = render(20, "Процедура P", &format!("{wide}=Null"));
     assert!(parse(accept.as_bytes()).is_ok());
     let default_too_long = format!("Z=\"{}\"", "x".repeat(128));
@@ -1068,7 +1310,10 @@ fn long_ordinary_headers_keep_line_and_formal_exception_bounded() {
     }
     // The pre-existing method-name exception is not the new formal-name rule.
     let wide_method = format!("Процедура {}()\nКонецПроцедуры", "Я".repeat(76));
-    assert_eq!(parse(wide_method.as_bytes()).unwrap(), old(wide_method.as_bytes()).unwrap());
+    assert_eq!(
+        parse(wide_method.as_bytes()).unwrap(),
+        old(wide_method.as_bytes()).unwrap()
+    );
     let mut line = render(20, "Процедура P", "Z");
     let end = line.find(" Экспорт").unwrap() + " Экспорт".len();
     line.insert_str(end, &format!(" //{}", "x".repeat(8200)));
@@ -1077,68 +1322,115 @@ fn long_ordinary_headers_keep_line_and_formal_exception_bounded() {
 
 #[test]
 fn lexical_tail_selectors_are_narrow_and_do_not_create_methods() {
-    use bslens_core::lexical::{analyze_lexical_tail_v1 as parse, analyze_long_headers_v1 as old, Reason};
+    use bslens_core::lexical::{
+        analyze_lexical_tail_v1 as parse, analyze_long_headers_v1 as old, Reason,
+    };
     let render = |body| format!("Процедура P()\r\n{body}\r\nКонецПроцедуры");
     let src = render("A.B.Процедура.Field = V;");
-    assert_eq!(old(src.as_bytes()).unwrap_err().reason, Reason::AmbiguousBoundary);
+    assert_eq!(
+        old(src.as_bytes()).unwrap_err().reason,
+        Reason::AmbiguousBoundary
+    );
     let analysis = parse(src.as_bytes()).unwrap();
     assert_eq!(analysis.boundaries.len(), 1);
     let first = &analysis.boundaries[0];
-    assert_eq!((first.name.as_str(), first.start_line, first.end_line), ("p",1,3));
-    assert_eq!(&src.as_bytes()[first.start_byte..first.end_byte], src.as_bytes());
+    assert_eq!(
+        (first.name.as_str(), first.start_line, first.end_line),
+        ("p", 1, 3)
+    );
+    assert_eq!(
+        &src.as_bytes()[first.start_byte..first.end_byte],
+        src.as_bytes()
+    );
     let quoted = render(r#"A.B.Процедура.Field = "Процедура ""Байт""; //";"#);
-    assert_eq!(old(quoted.as_bytes()).unwrap_err().reason, Reason::AmbiguousBoundary);
+    assert_eq!(
+        old(quoted.as_bytes()).unwrap_err().reason,
+        Reason::AmbiguousBoundary
+    );
     let analysis = parse(quoted.as_bytes()).unwrap();
     assert_eq!(analysis.boundaries.len(), 1);
     let first = &analysis.boundaries[0];
-    assert_eq!((first.name.as_str(), first.start_line, first.end_line), ("p",1,3));
-    assert_eq!(&quoted.as_bytes()[first.start_byte..first.end_byte], quoted.as_bytes());
+    assert_eq!(
+        (first.name.as_str(), first.start_line, first.end_line),
+        ("p", 1, 3)
+    );
+    assert_eq!(
+        &quoted.as_bytes()[first.start_byte..first.end_byte],
+        quoted.as_bytes()
+    );
     for bad in [
         r#"A.B.Процедура.Field = "a" + "b";"#,
         r#"A.B.Процедура.Field = "a";;"#,
         r#"A.B.Процедура.Field = "a; "#,
         "A.B.Процедура.Field = '20240229';",
         "A.B.Процедура.Field = 1;",
-        "A.B.Процедура .Field = V;", "A.B.Процедура. Field = V;",
-        "A.B.Процедура.Field.SubField = V;", "A.B.Процедура. = V;",
-        "A.B.Процедура.Field = ;", "A.B.Процедура.Field = V",
-        "A.B.Процедура.КонецПроцедуры = V;", "A..Процедура.Field = V;",
-        "A.B.Функция.Field = V;", "A.B.Процедура.Field = V; Процедура Q()",
+        "A.B.Процедура .Field = V;",
+        "A.B.Процедура. Field = V;",
+        "A.B.Процедура.Field.SubField = V;",
+        "A.B.Процедура. = V;",
+        "A.B.Процедура.Field = ;",
+        "A.B.Процедура.Field = V",
+        "A.B.Процедура.КонецПроцедуры = V;",
+        "A..Процедура.Field = V;",
+        "A.B.Функция.Field = V;",
+        "A.B.Процедура.Field = V; Процедура Q()",
     ] {
         let s = render(bad);
-        assert_eq!(parse(s.as_bytes()).unwrap_err().reason, Reason::AmbiguousBoundary, "{bad}");
+        assert_eq!(
+            parse(s.as_bytes()).unwrap_err().reason,
+            Reason::AmbiguousBoundary,
+            "{bad}"
+        );
     }
     let outside = "A.B.Процедура.Field = V;\nПроцедура P()\nКонецПроцедуры";
-    assert_eq!(parse(outside.as_bytes()).unwrap_err().reason, Reason::AmbiguousBoundary);
+    assert_eq!(
+        parse(outside.as_bytes()).unwrap_err().reason,
+        Reason::AmbiguousBoundary
+    );
     let old_witness = render("A.B.Процедура = V;");
-    assert_eq!(parse(old_witness.as_bytes()).unwrap(), old(old_witness.as_bytes()).unwrap());
+    assert_eq!(
+        parse(old_witness.as_bytes()).unwrap(),
+        old(old_witness.as_bytes()).unwrap()
+    );
 }
 
 #[test]
 fn lexical_tail_token_budget_is_explicit_and_size_gated() {
     use bslens_core::lexical::{
-        analyze_lexical_tail_v1 as parse, analyze_long_headers_v1 as old,
-        LEXICAL_TAIL_LARGE_TOKEN_THRESHOLD_BYTES as threshold, Reason,
+        analyze_lexical_tail_v1 as parse, analyze_long_headers_v1 as old, Reason,
+        LEXICAL_TAIL_LARGE_TOKEN_THRESHOLD_BYTES as threshold,
     };
     let source = |total_bytes: usize, tokens: usize| {
         let header = "Процедура P()\n";
         let close = "КонецПроцедуры";
         let fuel = ";".repeat(tokens - 5);
-        let body = fuel.as_bytes().chunks(1000).map(|c| {
-            std::str::from_utf8(c).unwrap()
-        }).collect::<Vec<_>>().join("\n");
+        let body = fuel
+            .as_bytes()
+            .chunks(1000)
+            .map(|c| std::str::from_utf8(c).unwrap())
+            .collect::<Vec<_>>()
+            .join("\n");
         let body = format!("{header}{body}\n{close}");
         format!("//{}\n{body}", "x".repeat(total_bytes - 3 - body.len()))
     };
     let small_exact = source(threshold, 100000);
-    assert_eq!(old(small_exact.as_bytes()).unwrap(), parse(small_exact.as_bytes()).unwrap());
+    assert_eq!(
+        old(small_exact.as_bytes()).unwrap(),
+        parse(small_exact.as_bytes()).unwrap()
+    );
     let small_over = source(threshold, 100001);
-    assert_eq!(parse(small_over.as_bytes()).unwrap_err().reason, Reason::Limit);
+    assert_eq!(
+        parse(small_over.as_bytes()).unwrap_err().reason,
+        Reason::Limit
+    );
     let larger = source(threshold + 1, 200000);
     let b = parse(larger.as_bytes()).unwrap().boundaries.remove(0);
     assert_eq!(b.start_line, 2);
     assert_eq!(b.end_byte, larger.len());
     assert_eq!(old(larger.as_bytes()).unwrap_err().reason, Reason::Limit);
     let larger_over = source(threshold + 1, 200001);
-    assert_eq!(parse(larger_over.as_bytes()).unwrap_err().reason, Reason::Limit);
+    assert_eq!(
+        parse(larger_over.as_bytes()).unwrap_err().reason,
+        Reason::Limit
+    );
 }

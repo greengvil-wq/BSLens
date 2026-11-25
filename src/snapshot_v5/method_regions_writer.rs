@@ -11,21 +11,8 @@ pub(crate) fn schema() -> String {
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true, true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
+        true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+        false, false, false, false, false, false,
     )?;
     sidecar_writer::validate_summary(db)?;
     let complete: bool = db.query_row(

@@ -45,15 +45,20 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
     let count = |key: &str| coverage.get(key).and_then(Value::as_u64);
     let agreement = info["profile"] == crate::snapshot_v5::navigator_agreement_writer::PROFILE
         || info["profile"] == crate::snapshot_v5::navigator_owners_writer::PROFILE;
-    let scoped_anomalies = agreement || info["profile"] == crate::snapshot_v5::source_anomalies_writer::PROFILE;
+    let scoped_anomalies =
+        agreement || info["profile"] == crate::snapshot_v5::source_anomalies_writer::PROFILE;
     let mut accepted = coverage
         .get("parse_counts")
         .and_then(|v| v.get("accepted"))
         .and_then(Value::as_u64);
     let qualified = if scoped_anomalies {
         accepted = Some(accepted.unwrap_or(0));
-        coverage["parse_counts"]["parsed_with_source_anomalies"].as_u64().unwrap_or(0)
-    } else { 0 };
+        coverage["parse_counts"]["parsed_with_source_anomalies"]
+            .as_u64()
+            .unwrap_or(0)
+    } else {
+        0
+    };
     let unparsed = count("modules")
         .zip(accepted)
         .and_then(|(total, n)| total.checked_sub(n)?.checked_sub(qualified));
@@ -1075,7 +1080,9 @@ impl Router {
             crate::snapshot_v5::source_anomalies_writer::PROFILE,
             crate::snapshot_v5::navigator_agreement_writer::PROFILE,
             crate::snapshot_v5::navigator_owners_writer::PROFILE,
-        ].contains(&self.metadata["profile"].as_str().unwrap_or("")) {
+        ]
+        .contains(&self.metadata["profile"].as_str().unwrap_or(""))
+        {
             if let Some(site) = self.reader.source_anomaly(path)? {
                 response["structural_status"] = json!("parsed_with_source_anomalies");
                 response["source_anomaly"] = site;

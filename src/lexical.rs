@@ -88,19 +88,40 @@ fn is_dotted_procedure_member(row: &[Token], index: usize, allow_selector: bool)
     let [.., receiver, dot, member] = &row[..=index] else {
         return false;
     };
-    if member.text != "процедура" || dot.text != "."
-        || receiver.end != dot.start || dot.end != member.start
+    if member.text != "процедура"
+        || dot.text != "."
+        || receiver.end != dot.start
+        || dot.end != member.start
     {
         return false;
     }
     let plain_suffix = row.get(index + 1).is_none_or(|t| {
-            matches!(t.text.as_str(),
-                "(" | ")" | "[" | "]" | ";" | "," | "=" | "<" | ">"
-                | "+" | "-" | "*" | "/" | "%" | "и" | "или" | "and" | "or")
+        matches!(
+            t.text.as_str(),
+            "(" | ")"
+                | "["
+                | "]"
+                | ";"
+                | ","
+                | "="
+                | "<"
+                | ">"
+                | "+"
+                | "-"
+                | "*"
+                | "/"
+                | "%"
+                | "и"
+                | "или"
+                | "and"
+                | "or"
+        )
     });
     let selected_assignment = allow_selector
         && row.get(index + 1..).is_some_and(|suffix| {
-            let [next_dot, selector, assignment, rhs, terminal] = suffix else { return false };
+            let [next_dot, selector, assignment, rhs, terminal] = suffix else {
+                return false;
+            };
             next_dot.text == "." && member.end == next_dot.start && next_dot.end == selector.start
                 && variable_name(selector) && assignment.text == "="
                 // A separately tokenized terminal separator proves that an
@@ -118,8 +139,12 @@ fn is_dotted_procedure_member(row: &[Token], index: usize, allow_selector: bool)
         if matches!(t.text.as_str(), ")" | "]") {
             return true;
         }
-        if !t.identifier || reserved_name(&t.text) || start(&t.text).is_some()
-            || end(&t.text).is_some() || asynchronous(&t.text) || export(&t.text)
+        if !t.identifier
+            || reserved_name(&t.text)
+            || start(&t.text).is_some()
+            || end(&t.text).is_some()
+            || asynchronous(&t.text)
+            || export(&t.text)
         {
             return false;
         }
@@ -301,11 +326,16 @@ fn tokens(
             // Previous compact shapes plus exactly ASCII YYYY-MM-DD in this
             // profile. Inspect at most the ten interior bytes for separators.
             let start = i + 1;
-            let dashed = allow_dashed_date && text.as_bytes().get(start..start + 10).is_some_and(|b| {
-                b.iter().enumerate().all(|(n, x)| {
-                    if n == 4 || n == 7 { *x == b'-' } else { x.is_ascii_digit() }
-                })
-            });
+            let dashed = allow_dashed_date
+                && text.as_bytes().get(start..start + 10).is_some_and(|b| {
+                    b.iter().enumerate().all(|(n, x)| {
+                        if n == 4 || n == 7 {
+                            *x == b'-'
+                        } else {
+                            x.is_ascii_digit()
+                        }
+                    })
+                });
             let content_bytes = if dashed {
                 // The ten ASCII bytes were checked; require the quote next.
                 for _ in 0..10 {
@@ -336,7 +366,11 @@ fn tokens(
             {
                 return fail(Reason::UnsupportedCharacter, line);
             }
-            ((if dashed { "@date-dashed" } else { "@date" }).into(), close + 1, false)
+            (
+                (if dashed { "@date-dashed" } else { "@date" }).into(),
+                close + 1,
+                false,
+            )
         } else if letter(c) {
             let mut finish = i + c.len_utf8();
             while let Some((j, d)) = chars.peek().copied() {
@@ -366,86 +400,409 @@ fn tokens(
 /// All-or-nothing lexical result. Any unsupported state discards all candidates.
 /// Empty boundaries never prove absence of methods outside this declared subset.
 pub fn analyze(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 /// Exact Russian no-argument context annotations; physical adjacency, no semantic inference.
 pub fn analyze_context_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 /// Single physical line, bounded identifier parameters; no defaults or expressions.
 pub fn analyze_parameters_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 /// Physical conditional arms, syntax only; no active-context evaluation.
 pub fn analyze_conditionals_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 /// Opaque pipe-continuation strings, without value evaluation or byte rewriting.
 pub fn analyze_pipe_strings_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 /// Exact combined RU annotation and bounded scalar defaults on single-line headers.
 pub fn analyze_literal_defaults_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 /// Exactly two adjacent physical lines in a plain-parameter header.
 pub fn analyze_wrapped_headers_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, false, false, false, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 pub const MAX_REFINED_HEADER_LINES: usize = 16;
 
 /// Bounded comma-separated headers and two additional physical condition atoms.
 pub fn analyze_corpus_refinements_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, false, false, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 pub const MAX_ANNOTATED_VAR_NAMES: usize = 64;
 
 /// Recognize a module variable declaration only in the exact adjacent annotation slot.
 pub fn analyze_annotated_vars_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, true, false, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 /// Extended lexical inventory; does not evaluate literals.
 pub fn analyze_dates_members_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, true, true, false, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 /// Latest narrow lexical profile: no scheduling or context semantics.
 pub fn analyze_async_casing_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, true, true, true, false, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 /// Latest bounded structural profile; variables do not emit method facts.
 pub fn analyze_mobile_vars_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, true, true, true, true, false, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 /// Local method regions do not alter structural inventory or branch semantics.
 pub fn analyze_method_regions_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, true, true, true, true, true, false, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 /// Bounded additional header forms without expression evaluation.
 pub fn analyze_header_forms_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, true, true, true, true, true, true, false, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 /// Explicit Linux pilot source budget with narrowly evidenced lexical forms.
 pub fn analyze_source_limits_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 /// Opt-in for long ordinary wrapped declarations; async keeps its old limit.
 pub fn analyze_long_headers_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, false, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false,
+        anomaly::View::Strict,
+    )
 }
 
 /// Opt-in continuation of the bounded lexical inventory pilot.
 pub fn analyze_lexical_tail_v1(raw: &[u8]) -> Result<Analysis, Refusal> {
-    analyze_mode(raw, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, true, anomaly::View::Strict)
+    analyze_mode(
+        raw,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        anomaly::View::Strict,
+    )
 }
 
 pub const MAX_LONG_ORDINARY_HEADER_LINES: usize = 20;
@@ -475,8 +832,7 @@ fn variable_fragment(row: &[Token]) -> Option<bool> {
     let terminal = row.last()?.text.as_str();
     if !matches!(terminal, "," | ";")
         || !row.chunks_exact(2).enumerate().all(|(i, pair)| {
-            variable_name(&pair[0])
-                && (i == row.len() / 2 - 1 || pair[1].text == ",")
+            variable_name(&pair[0]) && (i == row.len() / 2 - 1 || pair[1].text == ",")
         })
     {
         return None;
@@ -512,7 +868,9 @@ fn annotated_module_variables(row: &[Token], line: usize) -> Result<bool, Refusa
 /// The last visible token is produced by the quote-aware tokenizer. A suffix
 /// after it can be horizontal space or a real lexer-stopped line comment.
 fn header_line_end(body: &str, base: usize, last: &Token, allow_comment: bool) -> Option<usize> {
-    let tail = body.get((last.end - base)..)?.trim_start_matches([' ', '\t']);
+    let tail = body
+        .get((last.end - base)..)?
+        .trim_start_matches([' ', '\t']);
     if tail.is_empty() {
         Some(last.end)
     } else if allow_comment && tail.starts_with("//") {
@@ -585,7 +943,11 @@ fn parameter_header(
     // The declaration grammar consumes a view without the modifier, but its
     // lexical budget covers every token and byte from that original prefix.
     let first_byte = modifier_byte.unwrap_or(row[0].start);
-    let token_cap = if long_ordinary { MAX_LONG_FORMAL_BYTES } else { 128 };
+    let token_cap = if long_ordinary {
+        MAX_LONG_FORMAL_BYTES
+    } else {
+        128
+    };
     if row.len() + usize::from(modifier_byte.is_some()) > 200
         || row.last().unwrap().end - first_byte - name_bytes > 8192
         || row
@@ -595,7 +957,9 @@ fn parameter_header(
     {
         return fail(Reason::Limit, line);
     }
-    let mut long_tokens = row.iter().enumerate()
+    let mut long_tokens = row
+        .iter()
+        .enumerate()
         .filter(|(i, t)| !(preserve_method_name && *i == 1) && t.end - t.start > 128)
         .count();
     if row.len() < 4
@@ -688,7 +1052,13 @@ fn analyze_mode(
     lexical_tail: bool,
     anomaly_view: anomaly::View,
 ) -> Result<Analysis, Refusal> {
-    if raw.len() > if source_limits { LARGE_MODULE_BYTES } else { MAX_BYTES } {
+    if raw.len()
+        > if source_limits {
+            LARGE_MODULE_BYTES
+        } else {
+            MAX_BYTES
+        }
+    {
         return fail(Reason::Limit, 1);
     }
     let token_cap = if lexical_tail && raw.len() > LEXICAL_TAIL_LARGE_TOKEN_THRESHOLD_BYTES {
@@ -750,9 +1120,7 @@ fn analyze_mode(
             if trimmed.starts_with("//") {
                 continue;
             }
-            if body.is_empty()
-                && anomaly_view == anomaly::View::EmptyOpaquePhysicalLine(base)
-            {
+            if body.is_empty() && anomaly_view == anomaly::View::EmptyOpaquePhysicalLine(base) {
                 continue;
             }
             let Some(fragment) = trimmed.strip_prefix('|') else {
@@ -789,7 +1157,9 @@ fn analyze_mode(
             }
         }
         if conditional && !resumed {
-            if let Some((kind, n)) = condition::directive(body, line, refined, async_casing, mobile_vars)? {
+            if let Some((kind, n)) =
+                condition::directive(body, line, refined, async_casing, mobile_vars)?
+            {
                 if !stack.is_empty() || pending_annotation.is_some() {
                     return fail(Reason::DirectiveUnsupported, line);
                 }
@@ -846,17 +1216,16 @@ fn analyze_mode(
                 || pending_annotation.is_some()
                 || !(["&НаКлиенте", "&НаСервере", "&НаСервереБезКонтекста"]
                     .contains(&body.trim_matches([' ', '\t']))
-                    || (literals && body.trim_matches([' ', '\t']) == "&НаКлиентеНаСервереБезКонтекста"))
+                    || (literals
+                        && body.trim_matches([' ', '\t']) == "&НаКлиентеНаСервереБезКонтекста"))
             {
                 return fail(Reason::AnnotationUnsupported, line);
             }
             charge_tokens(&mut count, 2, token_cap, line)?;
             pending_annotation = Some((
                 line,
-                annotated_vars && matches!(
-                    body.trim_matches([' ', '\t']),
-                    "&НаКлиенте" | "&НаСервере"
-                ),
+                annotated_vars
+                    && matches!(body.trim_matches([' ', '\t']), "&НаКлиенте" | "&НаСервере"),
                 body.trim_matches([' ', '\t']) == "&НаКлиенте",
             ));
             continue;
@@ -899,8 +1268,15 @@ fn analyze_mode(
             continue;
         }
         let mut row = tokens(
-            body, base, line, &mut count, token_cap, strings, dates_members,
-            source_limits && current.is_some(), &mut opaque,
+            body,
+            base,
+            line,
+            &mut count,
+            token_cap,
+            strings,
+            dates_members,
+            source_limits && current.is_some(),
+            &mut opaque,
         )?;
         if resumed {
             row.insert(
@@ -921,9 +1297,9 @@ fn analyze_mode(
             }
             if mobile_vars && row.last().is_some_and(|t| t.text == ",") {
                 if variable_fragment(&row[1..]) != Some(false)
-                    || !row.last().is_some_and(|t| {
-                        t.end == base + body.trim_end_matches([' ', '\t']).len()
-                    })
+                    || !row
+                        .last()
+                        .is_some_and(|t| t.end == base + body.trim_end_matches([' ', '\t']).len())
                 {
                     return fail(Reason::AnnotationUnsupported, line);
                 }
@@ -944,11 +1320,22 @@ fn analyze_mode(
                     if end - row[0].start > MAX_ANNOTATED_VAR_LIST_BYTES {
                         return fail(Reason::Limit, next_line);
                     }
-                    let next = tokens(body, offset, next_line, &mut count, token_cap, false, false, false, &mut opaque)?;
+                    let next = tokens(
+                        body,
+                        offset,
+                        next_line,
+                        &mut count,
+                        token_cap,
+                        false,
+                        false,
+                        false,
+                        &mut opaque,
+                    )?;
                     let Some(last) = next.last() else {
                         return fail(Reason::AnnotationUnsupported, next_line);
                     };
-                    let Some(complete) = variable_fragment(&next).filter(|_| last.end == end) else {
+                    let Some(complete) = variable_fragment(&next).filter(|_| last.end == end)
+                    else {
                         return fail(Reason::AnnotationUnsupported, next_line);
                     };
                     if row.len() + next.len() > 1 + 2 * MAX_ANNOTATED_VAR_NAMES {
@@ -1011,7 +1398,15 @@ fn analyze_mode(
                     && row.last().is_some_and(|t| {
                         t.text != ";" && t.end == base + body.trim_end_matches([' ', '\t']).len()
                     })
-                    && parameter_header(&row, line, conditional, literals, modifier_byte, header_forms, false)?
+                    && parameter_header(
+                        &row,
+                        line,
+                        conditional,
+                        literals,
+                        modifier_byte,
+                        header_forms,
+                        false,
+                    )?
             } else if wrapped_header {
                 let line_cap = if long_headers && modifier_byte.is_none() {
                     MAX_LONG_ORDINARY_HEADER_LINES
@@ -1031,7 +1426,17 @@ fn analyze_mode(
                     }
                     let next_body = continuation.strip_suffix('\n').unwrap_or(continuation);
                     let next_body = next_body.strip_suffix('\r').unwrap_or(next_body);
-                    let next = tokens(next_body, offset, next_line, &mut count, token_cap, false, dates_members, false, &mut opaque)?;
+                    let next = tokens(
+                        next_body,
+                        offset,
+                        next_line,
+                        &mut count,
+                        token_cap,
+                        false,
+                        dates_members,
+                        false,
+                        &mut opaque,
+                    )?;
                     let Some(last) = next.last() else {
                         return fail(Reason::UnsupportedHeader, next_line);
                     };
@@ -1039,8 +1444,8 @@ fn analyze_mode(
                         return fail(Reason::UnsupportedHeader, next_line);
                     };
                     if row.len() + next.len() + usize::from(modifier_byte.is_some()) > 200
-                        || end - modifier_byte.unwrap_or(row[0].start)
-                            - (row[1].end - row[1].start) > 8192
+                        || end - modifier_byte.unwrap_or(row[0].start) - (row[1].end - row[1].start)
+                            > 8192
                     {
                         return fail(Reason::Limit, next_line);
                     }
@@ -1055,10 +1460,18 @@ fn analyze_mode(
                     last_line = next_line;
                     offset += continuation.len();
                     if !incomplete {
-                        break (modifier_byte.is_none() || row.last().is_some_and(|t| t.text != ";"))
-                            && parameter_header(&row, line, conditional, true, modifier_byte, header_forms,
+                        break (modifier_byte.is_none()
+                            || row.last().is_some_and(|t| t.text != ";"))
+                            && parameter_header(
+                                &row,
+                                line,
+                                conditional,
+                                true,
+                                modifier_byte,
+                                header_forms,
                                 line_cap > MAX_REFINED_HEADER_LINES
-                                    && header_end_line - line + 1 > MAX_REFINED_HEADER_LINES)?;
+                                    && header_end_line - line + 1 > MAX_REFINED_HEADER_LINES,
+                            )?;
                     }
                 }
             } else if wrapped
@@ -1085,7 +1498,17 @@ fn analyze_mode(
                 }
                 // Parse this exact line only, never dispatching directives, branches,
                 // annotations, methods or regions from the continuation.
-                let next = tokens(next_body, offset, next_line, &mut count, token_cap, false, dates_members, false, &mut opaque)?;
+                let next = tokens(
+                    next_body,
+                    offset,
+                    next_line,
+                    &mut count,
+                    token_cap,
+                    false,
+                    dates_members,
+                    false,
+                    &mut opaque,
+                )?;
                 if next.len() < 2 {
                     return fail(Reason::UnsupportedHeader, next_line);
                 }
@@ -1093,11 +1516,21 @@ fn analyze_mode(
                 header_end_line = next_line;
                 last_line = next_line;
                 offset += continuation.len();
-                !row[3..].iter().any(|t| matches!(t.text.as_str(), "val" | "знач"))
+                !row[3..]
+                    .iter()
+                    .any(|t| matches!(t.text.as_str(), "val" | "знач"))
                     && parameter_header(&row, line, conditional, false, None, header_forms, false)?
             } else if parameters {
                 (!literals || opaque.is_none())
-                    && parameter_header(&row, line, conditional, literals, None, header_forms, false)?
+                    && parameter_header(
+                        &row,
+                        line,
+                        conditional,
+                        literals,
+                        None,
+                        header_forms,
+                        false,
+                    )?
             } else {
                 (row.len() == 4 || row.len() == 5 && export(&row[4].text))
                     && row[1].identifier
@@ -1158,7 +1591,8 @@ fn analyze_mode(
         if row.iter().enumerate().any(|(i, t)| {
             end(&t.text).is_some()
                 || (start(&t.text).is_some()
-                    && !(dates_members && is_dotted_procedure_member(&row, i, lexical_tail && current.is_some())))
+                    && !(dates_members
+                        && is_dotted_procedure_member(&row, i, lexical_tail && current.is_some())))
         }) {
             return fail(Reason::AmbiguousBoundary, line);
         }

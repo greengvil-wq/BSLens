@@ -15,7 +15,13 @@ pub(super) struct Frame {
     pub seen_else: bool,
 }
 // Only explicitly versioned preprocessor atoms; never evaluate branches.
-fn expression(text: &str, line: usize, refined: bool, casefold: bool, mobile: bool) -> Result<usize, Refusal> {
+fn expression(
+    text: &str,
+    line: usize,
+    refined: bool,
+    casefold: bool,
+    mobile: bool,
+) -> Result<usize, Refusal> {
     if text.len() > 4096 {
         return fail(Reason::Limit, line);
     }
@@ -47,16 +53,26 @@ fn expression(text: &str, line: usize, refined: bool, casefold: bool, mobile: bo
                 "и" => "И",
                 "или" => "Или",
                 "сервер" => "Сервер",
-                "толстыйклиентобычноеприложение" => "ТолстыйКлиентОбычноеПриложение",
+                "толстыйклиентобычноеприложение" => {
+                    "ТолстыйКлиентОбычноеПриложение"
+                }
                 "внешнеесоединение" => "ВнешнееСоединение",
                 "вебклиент" => "ВебКлиент",
                 "мобильныйклиент" => "МобильныйКлиент",
                 "тонкийклиент" => "ТонкийКлиент",
-                "толстыйклиентуправляемоеприложение" => "ТолстыйКлиентУправляемоеПриложение",
+                "толстыйклиентуправляемоеприложение" => {
+                    "ТолстыйКлиентУправляемоеПриложение"
+                }
                 "клиент" => "Клиент",
-                "мобильныйавтономныйсервер" if mobile => "МобильныйАвтономныйСервер",
-                "мобильноеприложениеклиент" if mobile => "МобильноеПриложениеКлиент",
-                "мобильноеприложениесервер" if mobile => "МобильноеПриложениеСервер",
+                "мобильныйавтономныйсервер" if mobile => {
+                    "МобильныйАвтономныйСервер"
+                }
+                "мобильноеприложениеклиент" if mobile => {
+                    "МобильноеПриложениеКлиент"
+                }
+                "мобильноеприложениесервер" if mobile => {
+                    "МобильноеПриложениеСервер"
+                }
                 _ => *t,
             };
         }
@@ -93,9 +109,11 @@ fn expression(text: &str, line: usize, refined: bool, casefold: bool, mobile: bo
                 *i += 1;
                 true
             }
-            Some("МобильныйАвтономныйСервер" | "МобильноеПриложениеКлиент" | "МобильноеПриложениеСервер")
-                if mobile =>
-            {
+            Some(
+                "МобильныйАвтономныйСервер"
+                | "МобильноеПриложениеКлиент"
+                | "МобильноеПриложениеСервер",
+            ) if mobile => {
                 *i += 1;
                 true
             }
@@ -133,7 +151,13 @@ fn expression(text: &str, line: usize, refined: bool, casefold: bool, mobile: bo
     Ok(ts.len())
 }
 // Returns None only for another directive (the existing region guard handles it).
-pub(super) fn directive(body: &str, line: usize, refined: bool, casefold: bool, mobile: bool) -> Result<Option<(&'static str, usize)>, Refusal> {
+pub(super) fn directive(
+    body: &str,
+    line: usize,
+    refined: bool,
+    casefold: bool,
+    mobile: bool,
+) -> Result<Option<(&'static str, usize)>, Refusal> {
     let body = body.trim_start_matches([' ', '\t']);
     let body = body
         .split_once("//")
@@ -155,7 +179,13 @@ pub(super) fn directive(body: &str, line: usize, refined: bool, casefold: bool, 
         if !expr.ends_with([' ', '\t']) {
             return fail(Reason::DirectiveUnsupported, line);
         }
-        expression(expr.trim_end_matches([' ', '\t']), line, refined, casefold, mobile)? + 2
+        expression(
+            expr.trim_end_matches([' ', '\t']),
+            line,
+            refined,
+            casefold,
+            mobile,
+        )? + 2
     } else {
         if !tail.is_empty() {
             return fail(Reason::DirectiveUnsupported, line);

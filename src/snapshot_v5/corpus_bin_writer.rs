@@ -113,13 +113,16 @@ pub(crate) fn stored_policy(db: &Connection) -> Result<Policy> {
     policy.source_anomalies = agreement || profile == super::source_anomalies_writer::PROFILE;
     policy.lexical_tail = agreement || profile == super::lexical_tail_writer::PROFILE;
     policy.long_headers = profile == super::long_headers_writer::PROFILE || policy.lexical_tail;
-    policy.source_limits = profile == super::source_limits_writer::PROFILE || policy.long_headers || policy.source_anomalies;
+    policy.source_limits = profile == super::source_limits_writer::PROFILE
+        || policy.long_headers
+        || policy.source_anomalies;
     policy.header_forms = profile == super::header_forms_writer::PROFILE || policy.source_limits;
     policy.method_regions = profile == super::method_regions_writer::PROFILE || policy.header_forms;
     policy.mobile_vars = profile == super::mobile_vars_writer::PROFILE || policy.method_regions;
     policy.async_casing = profile == super::async_casing_writer::PROFILE || policy.mobile_vars;
     policy.dates_members = profile == super::dates_members_writer::PROFILE || policy.async_casing;
-    policy.annotated_vars = profile == super::annotated_vars_writer::PROFILE || policy.dates_members;
+    policy.annotated_vars =
+        profile == super::annotated_vars_writer::PROFILE || policy.dates_members;
     policy.refined = profile == super::refined_writer::PROFILE || policy.annotated_vars;
     policy.wrapped = profile == super::wrapped_writer::PROFILE || policy.refined;
     policy.literals = profile == super::literal_writer::PROFILE || policy.wrapped;
@@ -146,21 +149,8 @@ pub(crate) fn stored_policy(db: &Connection) -> Result<Policy> {
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
-        false, false, false, false, false, false, false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
+        false, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(

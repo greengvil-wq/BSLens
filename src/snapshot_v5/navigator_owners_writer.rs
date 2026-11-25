@@ -5,26 +5,14 @@ use rusqlite::Connection;
 use std::path::Path;
 pub const PROFILE: &str = "linux-v5-navigator-owners1-xml221-r09";
 pub(crate) fn schema() -> String {
-    super::navigator_agreement_writer::schema().replace(super::navigator_agreement_writer::PROFILE, PROFILE)
+    super::navigator_agreement_writer::schema()
+        .replace(super::navigator_agreement_writer::PROFILE, PROFILE)
 }
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true, true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
+        true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
+        true, true, true, true, true, true,
     )?;
     sidecar_writer::validate_summary(db)?;
     let (count, bad): (u64, bool) = db.query_row(
@@ -35,7 +23,9 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     let stored: String = db.query_row("SELECT coverage_draft FROM metadata", [], |r| r.get(0))?;
     let summary: serde_json::Value = serde_json::from_str(&stored)?;
     let qualified = match summary["parse_counts"].get("parsed_with_source_anomalies") {
-        Some(v) => v.as_u64().ok_or(super::Error::Contract("source_anomaly_inventory"))?,
+        Some(v) => v
+            .as_u64()
+            .ok_or(super::Error::Contract("source_anomaly_inventory"))?,
         None => 0,
     };
     if bad || count != qualified {

@@ -9,21 +9,8 @@ pub(crate) fn schema() -> String {
 pub(super) fn validate_metadata(db: &rusqlite::Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
+        false, false, false, false, false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(
