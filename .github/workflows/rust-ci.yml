@@ -19,10 +19,41 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'integration/v5-bsp' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
       - name: Проверить точный коммит
         env:
-          EXPECTED_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'integration/v5-bsp' && github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          printf 'Проверяемый коммит: %s\n' "$actual_sha"
+          test "$actual_sha" = "$EXPECTED_SHA"
+      - name: Подготовить окружение
+        run: |
+          command -v git
+          /usr/bin/python3 --version
+          rustup toolchain install 1.85.1 --profile minimal --component rustfmt
+          rustup run 1.85.1 rustc --version
+      - name: Проверить форматирование
+        run: rustup run 1.85.1 cargo fmt --all -- --check
+      - name: Тестировать сборку по умолчанию
+        run: rustup run 1.85.1 cargo test --locked
+      - name: Тестировать все возможности
+        run: rustup run 1.85.1 cargo test --locked --all-features
+
+  test-head:
+    name: Linux / Rust 1.85.1 / точный HEAD PR
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Проверить точный коммит
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           actual_sha="$(git rev-parse HEAD)"
           printf 'Проверяемый коммит: %s\n' "$actual_sha"
