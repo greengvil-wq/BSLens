@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use std::{collections::BTreeSet, path::Path};
 
 pub const PROFILE: &str = "linux-v5-navigator-sppr1-xml221-r09";
+pub const DEFAULT_BIN_BYTES: u64 = ingest::MAX_TEMPLATE_BIN_BYTES as u64;
 pub(crate) const REASON: &str = "SelectedProcessorRootHelpExcludedNotRead";
 
 pub(crate) fn schema() -> String {

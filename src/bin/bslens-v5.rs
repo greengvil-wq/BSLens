@@ -1357,9 +1357,10 @@ fn string_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
             source_limits_writer, streaming_facts, string_writer, wrapped_writer, Limits,
         },
     };
-    let report_resources = args[0] == "build-navigator-sppr";
-    if args.len() != if report_resources { 23 } else { 22 } {
-        return Err("Использование: bslens-v5 {build-strings|build-literals|build-wrapped-headers|build-corpus-refinements|build-annotated-vars|build-dates-members|build-async-casing|build-mobile-vars|build-method-regions|build-header-forms|build-source-limits|build-long-headers|build-lexical-tail|build-source-anomalies|build-navigator-agreement|build-navigator-owners} REPO FULL_COMMIT EXPECTED_TREE SOURCE_ID OUTPUT_DIR MAX_SOURCES MAX_SOURCE_BYTES MAX_TOTAL_BYTES MAX_SQLITE_BYTES GIT_ENTRIES GIT_TREES GIT_READS GIT_OBJECT_BYTES GIT_TOTAL_BYTES GIT_DEADLINE_MS MAX_FACTS MAX_COVERAGE_BYTES FACTS_TIME_MS GLOBAL_OPAQUE_JSON MAX_OPAQUE_BIN_BYTES MAX_DIAGNOSTICS_BYTES; build-navigator-sppr: те же аргументы + PROCESSOR_HELP_OWNERS_JSON".into());
+    let sppr = args[0] == "build-navigator-sppr";
+    let default_bin = sppr && args.len() == 22;
+    if !(args.len() == 22 || (sppr && args.len() == 23)) {
+        return Err("Использование: bslens-v5 {build-strings|build-literals|build-wrapped-headers|build-corpus-refinements|build-annotated-vars|build-dates-members|build-async-casing|build-mobile-vars|build-method-regions|build-header-forms|build-source-limits|build-long-headers|build-lexical-tail|build-source-anomalies|build-navigator-agreement|build-navigator-owners} REPO FULL_COMMIT EXPECTED_TREE SOURCE_ID OUTPUT_DIR MAX_SOURCES MAX_SOURCE_BYTES MAX_TOTAL_BYTES MAX_SQLITE_BYTES GIT_ENTRIES GIT_TREES GIT_READS GIT_OBJECT_BYTES GIT_TOTAL_BYTES GIT_DEADLINE_MS MAX_FACTS MAX_COVERAGE_BYTES FACTS_TIME_MS GLOBAL_OPAQUE_JSON MAX_OPAQUE_BIN_BYTES MAX_DIAGNOSTICS_BYTES; build-navigator-sppr: те же аргументы + PROCESSOR_HELP_OWNERS_JSON; MAX_OPAQUE_BIN_BYTES можно опустить (32 МиБ)".into());
     }
     let opaque = corpus_writer::parse_global_opaque(&args[19])?;
     let build = match args[0].as_str() {
@@ -1420,10 +1421,14 @@ fn string_command(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         total_bytes: args[14].parse()?,
         deadline: std::time::Duration::from_millis(args[15].parse()?),
     };
-    let bin = args[20].parse()?;
-    let diagnostics = args[21].parse()?;
-    let result = if report_resources {
-        let owners = navigator_sppr::parse_owners(&args[22])?;
+    let bin = if default_bin {
+        navigator_sppr::DEFAULT_BIN_BYTES
+    } else {
+        args[20].parse()?
+    };
+    let diagnostics = args[if default_bin { 20 } else { 21 }].parse()?;
+    let result = if sppr {
+        let owners = navigator_sppr::parse_owners(&args[if default_bin { 21 } else { 22 }])?;
         navigator_sppr::build(
             repo,
             &args[2],

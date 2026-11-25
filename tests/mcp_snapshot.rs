@@ -12652,9 +12652,11 @@ fn sppr_enum_form_exchange_html_and_bounded_template_identity() {
             "1048576",
             "30000",
             "[]",
-            limit,
-            "1048576",
         ]);
+        if let Some(limit) = (limit != "default").then_some(limit) {
+            cmd.arg(limit);
+        }
+        cmd.arg("1048576");
         if profile == "build-navigator-sppr" {
             cmd.arg("[]");
         }
@@ -12668,6 +12670,10 @@ fn sppr_enum_form_exchange_html_and_bounded_template_identity() {
         serde_json::from_slice::<Value>(&o.stdout).unwrap()
     };
     let saved = trial("saved", "32");
+    assert_eq!(
+        trial("default-bin", "default")["snapshot_id"],
+        trial("explicit-32mib", "33554432")["snapshot_id"]
+    );
     assert_ne!(
         saved["snapshot_id"],
         trial("new-limits", "16")["snapshot_id"]
