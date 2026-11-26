@@ -11,7 +11,7 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, false, false, false, false, false, false, false, false, false,
         false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(
@@ -67,6 +67,9 @@ pub fn build(
         false,
         false,
         false,
+        false,
+        false,
+        None,
     )
 }
 pub(crate) fn is_kind(kind: Kind) -> bool {
@@ -138,6 +141,7 @@ pub(crate) fn record_payloads<F: FnMut() -> Result<()>>(
     path: &str,
     kind: Kind,
     id: i64,
+    sppr: bool,
     mut charge: F,
 ) -> Result<()> {
     let prefix = format!(
@@ -177,6 +181,7 @@ pub(crate) fn record_payloads<F: FnMut() -> Result<()>>(
         )?;
     }
     match kind {
+        Kind::CommonPicture | Kind::XDTOPackage if sppr && body == 0 && envelope == 0 => Ok(()),
         Kind::CommonPicture if envelope != 1 || body != 1 => {
             Err(Error::Contract("leaf_payload_missing"))
         }

@@ -31,11 +31,24 @@ pub(crate) struct Policy {
     pub lexical_tail: bool,
     pub source_anomalies: bool,
     pub command_owners: bool,
+    pub large_templates: bool,
+    pub omit_command_help: bool,
+    pub processor_help: Option<Vec<String>>,
     pub globals: Vec<String>,
+    pub omitted_templates: std::collections::BTreeSet<String>,
 }
 impl Policy {
-    pub fn new(bytes: u64, globals: &[String]) -> Result<Self> {
-        if bytes == 0 || bytes > MAX_BIN_BYTES {
+    pub(crate) fn with_template_limit(
+        bytes: u64,
+        globals: &[String],
+        large_templates: bool,
+    ) -> Result<Self> {
+        let max = if large_templates {
+            ingest::MAX_TEMPLATE_BIN_BYTES as u64
+        } else {
+            MAX_BIN_BYTES
+        };
+        if bytes == 0 || bytes > max {
             return Err(Error::Contract("opaque_bin_bytes"));
         }
         Ok(Self {
@@ -63,32 +76,28 @@ impl Policy {
             lexical_tail: false,
             source_anomalies: false,
             command_owners: false,
+            large_templates,
+            omit_command_help: false,
+            processor_help: None,
+            omitted_templates: std::collections::BTreeSet::new(),
             globals: corpus_writer::parse_global_opaque(&serde_json::to_string(globals)?)?,
         })
     }
     pub fn eligible(&self, path: &str) -> bool {
         let p: Vec<_> = path.split('/').collect();
-        (p.len() == 4
-            && ((p[0] == "CommonTemplates" && p[2..] == ["Ext", "Template.bin"])
-                || (p[0] == "XDTOPackages" && p[2..] == ["Ext", "Package.bin"])))
-            || (p.len() == 6
-                && [
-                    "Catalogs",
-                    "Documents",
-                    "InformationRegisters",
-                    "DataProcessors",
-                    "Reports",
-                ]
-                .contains(&p[0])
-                && p[2] == "Templates"
-                && p[4..] == ["Ext", "Template.bin"])
+        ingest::binary_template_path(path)
+            || (p.len() == 4 && p[0] == "XDTOPackages" && p[2..] == ["Ext", "Package.bin"])
             || (path.ends_with(".bin")
                 && corpus_writer::global_opaque(path)
                 && self.globals.iter().any(|p| p == path))
     }
     pub fn cap(&self, path: &str, kind: &str, ordinary: u64) -> u64 {
         if kind == "payload" && self.eligible(path) {
-            self.bytes
+            if self.large_templates && ingest::binary_template_path(path) {
+                self.bytes
+            } else {
+                self.bytes.min(MAX_BIN_BYTES)
+            }
         } else {
             ordinary
         }
@@ -101,14 +110,43 @@ pub(crate) fn stored_policy(db: &Connection) -> Result<Policy> {
     let raw: String = db.query_row("SELECT build_parameters FROM metadata", [], |r| r.get(0))?;
     let p: serde_json::Value = serde_json::from_str(&raw)?;
     let g = corpus_writer::parse_global_opaque(&p["global_scope"]["opaque"].to_string())?;
-    let mut policy = Policy::new(
+    let profile: String = db.query_row("SELECT profile FROM metadata", [], |r| r.get(0))?;
+    let mut policy = Policy::with_template_limit(
         p["opaque_bin"]["bytes"]
             .as_u64()
             .ok_or(Error::Contract("opaque_bin_bytes"))?,
         &g,
+        profile == super::navigator_sppr::PROFILE,
     )?;
-    let profile: String = db.query_row("SELECT profile FROM metadata", [], |r| r.get(0))?;
-    policy.command_owners = profile == super::navigator_owners_writer::PROFILE;
+    policy.omit_command_help = profile == super::navigator_sppr::PROFILE;
+    if profile == super::navigator_sppr::PROFILE {
+        policy.processor_help = Some(super::navigator_sppr::parse_owners(
+            &p["report_resources_policy"]["processor_help_owners"].to_string(),
+        )?);
+    }
+    if profile == super::navigator_sppr::PROFILE {
+        let manifest = super::navigator_command_help_writer::read_manifest(db)?;
+        for entry in manifest["excluded"]
+            .as_array()
+            .ok_or(Error::Contract("sppr_manifest"))?
+        {
+            if entry["reason"] == super::navigator_sppr::OVERSIZE_REASON {
+                let path = entry["input"]["path"]
+                    .as_str()
+                    .ok_or(Error::Contract("sppr_manifest"))?;
+                if !ingest::binary_template_path(path)
+                    || entry["size_bytes"]
+                        .as_u64()
+                        .is_none_or(|size| size <= policy.bytes)
+                    || !policy.omitted_templates.insert(path.to_owned())
+                {
+                    return Err(Error::Contract("sppr_manifest"));
+                }
+            }
+        }
+    }
+    policy.command_owners =
+        policy.large_templates || profile == super::navigator_owners_writer::PROFILE;
     let agreement = policy.command_owners || profile == super::navigator_agreement_writer::PROFILE;
     policy.source_anomalies = agreement || profile == super::source_anomalies_writer::PROFILE;
     policy.lexical_tail = agreement || profile == super::lexical_tail_writer::PROFILE;
@@ -150,7 +188,7 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, true, true, true, false, false,
         false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(
@@ -208,6 +246,9 @@ pub fn build(
         false,
         false,
         false,
+        false,
+        false,
+        None,
     )
 }
 pub(crate) fn check_sources(db: &Connection, ordinary: u64, policy: Option<&Policy>) -> Result<()> {

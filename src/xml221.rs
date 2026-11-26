@@ -11,6 +11,8 @@ pub const MAX_DEPTH: usize = 64;
 pub const MAX_EVENTS: usize = 20000;
 pub const MAX_NODES: u32 = 10000;
 pub const MAX_CONFIGURATION_NODES: u32 = 16384;
+pub(crate) const MAX_SPPR_CATALOG_NODES: u32 = 32768;
+pub(crate) const MAX_SPPR_CATALOG_EVENTS: usize = 32768;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Code {
@@ -733,6 +735,7 @@ impl Xml221Subset {
             common: false,
             companions: false,
             companion_refs: vec![],
+            sppr: false,
         };
         state.read("Configuration.xml", Kind::Configuration, None)?;
         for path in docs.keys() {
@@ -771,10 +774,22 @@ pub(crate) fn path_check(path: &str) -> Result<()> {
     }
     Ok(())
 }
-fn parse<'a>(raw: &'a [u8], path: &str) -> Result<Document<'a>> {
+pub(crate) fn parse<'a>(raw: &'a [u8], path: &str) -> Result<Document<'a>> {
     parse_mode(raw, path, false)
 }
 fn parse_mode<'a>(raw: &'a [u8], path: &str, configuration: bool) -> Result<Document<'a>> {
+    parse_mode_catalog(raw, path, configuration, false)
+}
+#[cfg(feature = "experimental-snapshot-v5")]
+pub(crate) fn parse_sppr_scd<'a>(raw: &'a [u8], path: &str) -> Result<Document<'a>> {
+    parse_mode_catalog(raw, path, false, true)
+}
+fn parse_mode_catalog<'a>(
+    raw: &'a [u8],
+    path: &str,
+    configuration: bool,
+    catalog: bool,
+) -> Result<Document<'a>> {
     if raw.len() > MAX_XML_BYTES {
         return Err(error(Code::Limit, path));
     }
@@ -791,7 +806,13 @@ fn parse_mode<'a>(raw: &'a [u8], path: &str, configuration: bool) -> Result<Docu
             .read_event()
             .map_err(|_| error(Code::Malformed, path))?;
         count += 1;
-        if count > MAX_EVENTS {
+        if count
+            > if catalog {
+                MAX_SPPR_CATALOG_EVENTS
+            } else {
+                MAX_EVENTS
+            }
+        {
             return Err(error(Code::Limit, path));
         }
         match event {
@@ -829,7 +850,9 @@ fn parse_mode<'a>(raw: &'a [u8], path: &str, configuration: bool) -> Result<Docu
         text,
         ParsingOptions {
             allow_dtd: false,
-            nodes_limit: if configuration && path == "Configuration.xml" {
+            nodes_limit: if catalog {
+                MAX_SPPR_CATALOG_NODES
+            } else if configuration && path == "Configuration.xml" {
                 MAX_CONFIGURATION_NODES
             } else {
                 MAX_NODES
@@ -903,6 +926,7 @@ struct State<'a, 'b> {
     corpus: bool,
     root_ranges: BTreeMap<String, (usize, usize)>,
     companion_refs: Vec<CompanionRef>,
+    sppr: bool,
 }
 impl State<'_, '_> {
     fn read(&mut self, path: &str, kind: Kind, expected: Option<&str>) -> Result<()> {
@@ -1168,6 +1192,7 @@ impl State<'_, '_> {
             return Err(error(Code::NestedUnsupported, path));
         }
         if empty_filter
+            && !self.sppr
             && containers
                 .iter()
                 .any(|n| n.attributes().len() != 0 || !no_text(*n) || !elements(*n).is_empty())
@@ -1230,6 +1255,7 @@ impl State<'_, '_> {
                                 kind,
                                 Kind::Sequence | Kind::SettingsStorage | Kind::Subsystem
                             )),
+                    self.sppr,
                 )?;
                 return Ok(references);
             }
@@ -1408,7 +1434,7 @@ pub(crate) fn inspect_shared_profile(
 ) -> Result<ParsedFile> {
     inspect_shared_profile_configuration(
         path, raw, kind, expected, modules, inline, companions, common, roots, shared, leaves,
-        journals, services, charts, registers, reports, workflows, corpus, false,
+        journals, services, charts, registers, reports, workflows, corpus, false, false,
     )
 }
 #[cfg(feature = "experimental-snapshot-v5")]
@@ -1432,6 +1458,7 @@ pub(crate) fn inspect_shared_profile_configuration(
     workflows: bool,
     corpus: bool,
     configuration: bool,
+    sppr: bool,
 ) -> Result<ParsedFile> {
     path_check(path)?;
     if modules.len() > 4 {
@@ -1439,7 +1466,16 @@ pub(crate) fn inspect_shared_profile_configuration(
     }
     let blobs = modules.iter().map(|p| (p.clone(), Vec::new())).collect();
     let docs = BTreeMap::new();
-    let doc = parse_mode(raw, path, configuration && kind == Kind::Configuration)?;
+    let large_catalog = sppr
+        && kind == Kind::Catalog
+        && path.starts_with("Catalogs/")
+        && path.split('/').count() == 2;
+    let doc = parse_mode_catalog(
+        raw,
+        path,
+        configuration && kind == Kind::Configuration,
+        large_catalog,
+    )?;
     let mut state = State {
         blobs: &blobs,
         docs: &docs,
@@ -1464,6 +1500,7 @@ pub(crate) fn inspect_shared_profile_configuration(
         common: false,
         companions: false,
         companion_refs: vec![],
+        sppr,
     };
     state.inline = inline;
     state.companions = companions;
@@ -1527,8 +1564,10 @@ fn parse_inline_children(
     chart: bool,
     registers: bool,
     report: bool,
+    sppr: bool,
 ) -> Result<()> {
     let allowed: &[&str] = match parent_kind {
+        "FilterCriterion" if sppr => &["Command"],
         "Sequence" => &["Dimension"],
         "SettingsStorage" | "Subsystem" => &[],
         "ExchangePlan" | "BusinessProcess" => &["Attribute", "TabularSection"],
@@ -1574,7 +1613,7 @@ fn parse_inline_children(
         {
             if !companions
                 || parent.is_some()
-                || parent_kind == "Enum"
+                || (matches!(parent_kind, "Enum" | "FilterCriterion") && !(sppr && kind == "Form"))
                 || service
                 || (chart && kind == "Template")
                 || (parent_kind == "Sequence")
@@ -1757,6 +1796,7 @@ fn parse_inline_children(
                 chart,
                 registers,
                 report,
+                sppr,
             )?;
         } else if !children.is_empty() {
             return Err(error(Code::NestedUnsupported, path));
@@ -1942,6 +1982,7 @@ mod configuration_dom_budget_tests {
             false,
             false,
             true,
+            false,
         )
         .err()
         .expect("must reject wrong kind");

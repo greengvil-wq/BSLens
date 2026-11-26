@@ -579,5 +579,8 @@ pub mod navigator_owners_writer;
 pub mod refined_writer;
 pub mod source_anomalies_writer;
 pub mod source_limits_writer;
-pub mod string_writer;
 pub mod wrapped_writer;
+
+pub mod navigator_command_help_writer;
+pub mod navigator_sppr;
+pub mod string_writer;

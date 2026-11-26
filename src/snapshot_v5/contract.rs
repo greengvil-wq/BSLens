@@ -335,6 +335,10 @@ pub fn validate_schema_profile(db: &Connection) -> Result<()> {
             super::navigator_owners_writer::schema(),
         ),
         (
+            super::navigator_sppr::PROFILE,
+            super::navigator_sppr::schema(),
+        ),
+        (
             super::conditional_writer::PROFILE,
             super::conditional_writer::schema(),
         ),
@@ -494,6 +498,10 @@ pub fn validate_schema_profile(db: &Connection) -> Result<()> {
         super::navigator_owners_writer::validate_metadata(db)?;
         super::diagnostics_writer::validate_saved(db)?;
     }
+    if row.2 == super::navigator_sppr::PROFILE {
+        super::navigator_sppr::validate_metadata(db)?;
+        super::diagnostics_writer::validate_saved(db)?;
+    }
     if row.2 == super::refined_writer::PROFILE {
         super::refined_writer::validate_metadata(db)?;
         super::diagnostics_writer::validate_saved(db)?;
@@ -603,7 +611,15 @@ pub fn compatible_scope(db: &Connection) -> Result<()> {
         || adapter != ADAPTER
         || xml != "2.21"
         || lexical
-            != if db.query_row("SELECT profile FROM metadata", [], |r| {
+            != if db
+                .query_row("SELECT profile FROM metadata", [], |r| {
+                    r.get::<_, String>(0)
+                })?
+                .as_str()
+                == super::navigator_sppr::PROFILE
+            {
+                super::navigator_agreement_writer::LEXICAL
+            } else if db.query_row("SELECT profile FROM metadata", [], |r| {
                 r.get::<_, String>(0)
             })? == super::navigator_owners_writer::PROFILE
             {

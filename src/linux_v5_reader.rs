@@ -221,6 +221,20 @@ impl LinuxSnapshotReader {
         })
     }
 
+    pub(crate) fn sppr_exclusion(&self, path: &str) -> Result<Option<(String, u64)>> {
+        let raw = snapshot_v5::navigator_command_help_writer::read_manifest(&self.connection)?;
+        let list = raw["excluded"].as_array().ok_or(Error::Range)?;
+        for entry in list {
+            if entry["input"]["path"] == path {
+                if let (Some(reason), Some(size)) =
+                    (entry["reason"].as_str(), entry["size_bytes"].as_u64())
+                {
+                    return Ok(Some((reason.to_owned(), size)));
+                }
+            }
+        }
+        Ok(None)
+    }
     pub fn source(&self, path: &str, start: i64, end: i64, max_bytes: u64) -> Result<Vec<u8>> {
         self.source_span(path, start, end, max_bytes)
             .map(|(bytes, _, _)| bytes)
@@ -370,6 +384,7 @@ impl LinuxSnapshotReader {
                         snapshot_v5::source_anomalies_writer::PROFILE,
                         snapshot_v5::navigator_agreement_writer::PROFILE,
                         snapshot_v5::navigator_owners_writer::PROFILE,
+                        snapshot_v5::navigator_sppr::PROFILE,
                     ]
                     .contains(&profile.as_str())
                 {
@@ -422,6 +437,7 @@ impl LinuxSnapshotReader {
                     snapshot_v5::source_anomalies_writer::PROFILE,
                     snapshot_v5::navigator_agreement_writer::PROFILE,
                     snapshot_v5::navigator_owners_writer::PROFILE,
+                    snapshot_v5::navigator_sppr::PROFILE,
                 ]
                 .contains(&profile.as_str())
                     && level == "object"
@@ -431,13 +447,19 @@ impl LinuxSnapshotReader {
                         return Err(Error::Limit);
                     }
                     let (path,kind,len):(String,String,u64)=self.connection.query_row("SELECT o.xml_path,o.kind,length(s.content) FROM objects o JOIN sources s ON o.xml_path=s.path WHERE o.object_id=?1",[id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?)))?;
-                    if [snapshot_v5::optional_form_writer::PROFILE,snapshot_v5::sidecar_writer::PROFILE,snapshot_v5::context_writer::PROFILE,snapshot_v5::parameter_writer::PROFILE,snapshot_v5::conditional_writer::PROFILE,snapshot_v5::string_writer::PROFILE,snapshot_v5::literal_writer::PROFILE,snapshot_v5::wrapped_writer::PROFILE,snapshot_v5::refined_writer::PROFILE,snapshot_v5::annotated_vars_writer::PROFILE,snapshot_v5::dates_members_writer::PROFILE,snapshot_v5::async_casing_writer::PROFILE,snapshot_v5::mobile_vars_writer::PROFILE,snapshot_v5::method_regions_writer::PROFILE,snapshot_v5::header_forms_writer::PROFILE,snapshot_v5::source_limits_writer::PROFILE,snapshot_v5::long_headers_writer::PROFILE,snapshot_v5::lexical_tail_writer::PROFILE,snapshot_v5::source_anomalies_writer::PROFILE,snapshot_v5::navigator_agreement_writer::PROFILE,snapshot_v5::navigator_owners_writer::PROFILE].contains(&profile.as_str()) && kind=="Form" && self.connection.query_row("SELECT p.kind IN ('AccumulationRegister','ChartOfCharacteristicTypes') FROM objects o JOIN objects p ON p.object_id=o.parent_id WHERE o.object_id=?1",[id],|r|r.get::<_,bool>(0))? {
+                    if [snapshot_v5::optional_form_writer::PROFILE,snapshot_v5::sidecar_writer::PROFILE,snapshot_v5::context_writer::PROFILE,snapshot_v5::parameter_writer::PROFILE,snapshot_v5::conditional_writer::PROFILE,snapshot_v5::string_writer::PROFILE,snapshot_v5::literal_writer::PROFILE,snapshot_v5::wrapped_writer::PROFILE,snapshot_v5::refined_writer::PROFILE,snapshot_v5::annotated_vars_writer::PROFILE,snapshot_v5::dates_members_writer::PROFILE,snapshot_v5::async_casing_writer::PROFILE,snapshot_v5::mobile_vars_writer::PROFILE,snapshot_v5::method_regions_writer::PROFILE,snapshot_v5::header_forms_writer::PROFILE,snapshot_v5::source_limits_writer::PROFILE,snapshot_v5::long_headers_writer::PROFILE,snapshot_v5::lexical_tail_writer::PROFILE,snapshot_v5::source_anomalies_writer::PROFILE,snapshot_v5::navigator_agreement_writer::PROFILE,snapshot_v5::navigator_owners_writer::PROFILE,snapshot_v5::navigator_sppr::PROFILE].contains(&profile.as_str()) && kind=="Form" && self.connection.query_row("SELECT p.kind IN ('AccumulationRegister','ChartOfCharacteristicTypes') FROM objects o JOIN objects p ON p.object_id=o.parent_id WHERE o.object_id=?1",[id],|r|r.get::<_,bool>(0))? {
                         let module=format!("{}/Ext/Form/Module.bsl",path.strip_suffix(".xml").ok_or(Error::Range)?);
                         let presence:String=self.connection.query_row("SELECT coalesce((SELECT parse_status FROM modules WHERE path=?1 AND owner_id=?2),'absent')",rusqlite::params![module,id],|r|r.get(0))?;
                         branch["form_module_presence"]=json!(match presence.as_str(){"accepted"=>"accepted","unparsed"=>"unparsed","absent"=>"absent",_=>"unknown"});
                     }
-                    branch["descriptor_only"] = json!(crate::xml221::root_locator(&kind)
-                        .is_some_and(|r| matches!(r.kind, crate::xml221::Kind::Descriptor(_))));
+                    branch["descriptor_only"] = json!(
+                        !(profile == snapshot_v5::navigator_sppr::PROFILE
+                            && kind == "FilterCriterion")
+                            && crate::xml221::root_locator(&kind).is_some_and(|r| matches!(
+                                r.kind,
+                                crate::xml221::Kind::Descriptor(_)
+                            ))
+                    );
                     branch["source"] = json!({"saved_path":path,"start_byte":0,"end_byte":len});
                     if [
                         snapshot_v5::journal_writer::PROFILE,
@@ -472,6 +494,7 @@ impl LinuxSnapshotReader {
                         snapshot_v5::source_anomalies_writer::PROFILE,
                         snapshot_v5::navigator_agreement_writer::PROFILE,
                         snapshot_v5::navigator_owners_writer::PROFILE,
+                        snapshot_v5::navigator_sppr::PROFILE,
                     ]
                     .contains(&profile.as_str())
                         && ["Enum", "DocumentJournal"].contains(&kind.as_str())
@@ -518,6 +541,7 @@ impl LinuxSnapshotReader {
                         snapshot_v5::source_anomalies_writer::PROFILE,
                         snapshot_v5::navigator_agreement_writer::PROFILE,
                         snapshot_v5::navigator_owners_writer::PROFILE,
+                        snapshot_v5::navigator_sppr::PROFILE,
                     ]
                     .contains(&profile.as_str())
                     {
@@ -648,6 +672,7 @@ impl LinuxSnapshotReader {
             snapshot_v5::source_anomalies_writer::PROFILE,
             snapshot_v5::navigator_agreement_writer::PROFILE,
             snapshot_v5::navigator_owners_writer::PROFILE,
+            snapshot_v5::navigator_sppr::PROFILE,
         ]
         .contains(&profile.as_str())
         {
@@ -713,6 +738,7 @@ impl LinuxSnapshotReader {
             snapshot_v5::source_anomalies_writer::PROFILE,
             snapshot_v5::navigator_agreement_writer::PROFILE,
             snapshot_v5::navigator_owners_writer::PROFILE,
+            snapshot_v5::navigator_sppr::PROFILE,
         ]
         .contains(&p.as_str())
         {
@@ -723,13 +749,14 @@ impl LinuxSnapshotReader {
             [owner],
             |_| Ok(()),
         )?;
-        let leaf: bool = [snapshot_v5::leaf_writer::PROFILE,snapshot_v5::journal_writer::PROFILE,snapshot_v5::chart_writer::PROFILE,snapshot_v5::register_writer::PROFILE,snapshot_v5::report_writer::PROFILE,snapshot_v5::workflow_writer::PROFILE,snapshot_v5::corpus_writer::PROFILE,snapshot_v5::corpus_bin_writer::PROFILE,snapshot_v5::corpus_help_writer::PROFILE,snapshot_v5::corpus_config_writer::PROFILE,snapshot_v5::diagnostics_writer::PROFILE,snapshot_v5::optional_form_writer::PROFILE,snapshot_v5::sidecar_writer::PROFILE,snapshot_v5::context_writer::PROFILE,snapshot_v5::parameter_writer::PROFILE,snapshot_v5::conditional_writer::PROFILE,snapshot_v5::string_writer::PROFILE,snapshot_v5::literal_writer::PROFILE,snapshot_v5::wrapped_writer::PROFILE,snapshot_v5::refined_writer::PROFILE,snapshot_v5::annotated_vars_writer::PROFILE,snapshot_v5::dates_members_writer::PROFILE,snapshot_v5::async_casing_writer::PROFILE,snapshot_v5::mobile_vars_writer::PROFILE,snapshot_v5::method_regions_writer::PROFILE,snapshot_v5::header_forms_writer::PROFILE,snapshot_v5::source_limits_writer::PROFILE,snapshot_v5::long_headers_writer::PROFILE,snapshot_v5::lexical_tail_writer::PROFILE,snapshot_v5::source_anomalies_writer::PROFILE,snapshot_v5::navigator_agreement_writer::PROFILE,snapshot_v5::navigator_owners_writer::PROFILE].contains(&p.as_str()) && self.connection.query_row("SELECT kind IN ('CommonPicture','Constant','Role','ScheduledJob','XDTOPackage','DocumentJournal','ChartOfAccounts','ChartOfCalculationTypes','ChartOfCharacteristicTypes','AccountingRegister','AccumulationRegister','CalculationRegister','DataProcessor','Report','ExchangePlan','BusinessProcess','Task') OR (?2 AND kind IN ('Configuration','Subsystem')) FROM objects WHERE object_id=?1",rusqlite::params![owner,[snapshot_v5::corpus_writer::PROFILE,snapshot_v5::corpus_bin_writer::PROFILE,snapshot_v5::corpus_help_writer::PROFILE,snapshot_v5::corpus_config_writer::PROFILE,snapshot_v5::diagnostics_writer::PROFILE,snapshot_v5::optional_form_writer::PROFILE,snapshot_v5::sidecar_writer::PROFILE,snapshot_v5::context_writer::PROFILE,snapshot_v5::parameter_writer::PROFILE,snapshot_v5::conditional_writer::PROFILE,snapshot_v5::string_writer::PROFILE,snapshot_v5::literal_writer::PROFILE,snapshot_v5::wrapped_writer::PROFILE,snapshot_v5::refined_writer::PROFILE,snapshot_v5::annotated_vars_writer::PROFILE,snapshot_v5::dates_members_writer::PROFILE,snapshot_v5::async_casing_writer::PROFILE,snapshot_v5::mobile_vars_writer::PROFILE,snapshot_v5::method_regions_writer::PROFILE,snapshot_v5::header_forms_writer::PROFILE,snapshot_v5::source_limits_writer::PROFILE,snapshot_v5::long_headers_writer::PROFILE,snapshot_v5::lexical_tail_writer::PROFILE,snapshot_v5::source_anomalies_writer::PROFILE,snapshot_v5::navigator_agreement_writer::PROFILE,snapshot_v5::navigator_owners_writer::PROFILE].contains(&p.as_str())],|r|r.get(0))?;
-        let leaf=leaf || ([snapshot_v5::sidecar_writer::PROFILE,snapshot_v5::context_writer::PROFILE,snapshot_v5::parameter_writer::PROFILE,snapshot_v5::conditional_writer::PROFILE,snapshot_v5::string_writer::PROFILE,snapshot_v5::literal_writer::PROFILE,snapshot_v5::wrapped_writer::PROFILE,snapshot_v5::refined_writer::PROFILE,snapshot_v5::annotated_vars_writer::PROFILE,snapshot_v5::dates_members_writer::PROFILE,snapshot_v5::async_casing_writer::PROFILE,snapshot_v5::mobile_vars_writer::PROFILE,snapshot_v5::method_regions_writer::PROFILE,snapshot_v5::header_forms_writer::PROFILE,snapshot_v5::source_limits_writer::PROFILE,snapshot_v5::long_headers_writer::PROFILE,snapshot_v5::lexical_tail_writer::PROFILE,snapshot_v5::source_anomalies_writer::PROFILE,snapshot_v5::navigator_agreement_writer::PROFILE,snapshot_v5::navigator_owners_writer::PROFILE].contains(&p.as_str()) && self.connection.query_row("SELECT kind IN ('Catalog','Document','InformationRegister') FROM objects WHERE object_id=?1",[owner],|r|r.get::<_,bool>(0))?);
+        let leaf: bool = [snapshot_v5::leaf_writer::PROFILE,snapshot_v5::journal_writer::PROFILE,snapshot_v5::chart_writer::PROFILE,snapshot_v5::register_writer::PROFILE,snapshot_v5::report_writer::PROFILE,snapshot_v5::workflow_writer::PROFILE,snapshot_v5::corpus_writer::PROFILE,snapshot_v5::corpus_bin_writer::PROFILE,snapshot_v5::corpus_help_writer::PROFILE,snapshot_v5::corpus_config_writer::PROFILE,snapshot_v5::diagnostics_writer::PROFILE,snapshot_v5::optional_form_writer::PROFILE,snapshot_v5::sidecar_writer::PROFILE,snapshot_v5::context_writer::PROFILE,snapshot_v5::parameter_writer::PROFILE,snapshot_v5::conditional_writer::PROFILE,snapshot_v5::string_writer::PROFILE,snapshot_v5::literal_writer::PROFILE,snapshot_v5::wrapped_writer::PROFILE,snapshot_v5::refined_writer::PROFILE,snapshot_v5::annotated_vars_writer::PROFILE,snapshot_v5::dates_members_writer::PROFILE,snapshot_v5::async_casing_writer::PROFILE,snapshot_v5::mobile_vars_writer::PROFILE,snapshot_v5::method_regions_writer::PROFILE,snapshot_v5::header_forms_writer::PROFILE,snapshot_v5::source_limits_writer::PROFILE,snapshot_v5::long_headers_writer::PROFILE,snapshot_v5::lexical_tail_writer::PROFILE,snapshot_v5::source_anomalies_writer::PROFILE,snapshot_v5::navigator_agreement_writer::PROFILE,snapshot_v5::navigator_owners_writer::PROFILE,snapshot_v5::navigator_sppr::PROFILE].contains(&p.as_str()) && self.connection.query_row("SELECT kind IN ('CommonPicture','Constant','Role','ScheduledJob','XDTOPackage','DocumentJournal','ChartOfAccounts','ChartOfCalculationTypes','ChartOfCharacteristicTypes','AccountingRegister','AccumulationRegister','CalculationRegister','DataProcessor','Report','ExchangePlan','BusinessProcess','Task') OR (?2 AND kind IN ('Configuration','Subsystem')) FROM objects WHERE object_id=?1",rusqlite::params![owner,[snapshot_v5::corpus_writer::PROFILE,snapshot_v5::corpus_bin_writer::PROFILE,snapshot_v5::corpus_help_writer::PROFILE,snapshot_v5::corpus_config_writer::PROFILE,snapshot_v5::diagnostics_writer::PROFILE,snapshot_v5::optional_form_writer::PROFILE,snapshot_v5::sidecar_writer::PROFILE,snapshot_v5::context_writer::PROFILE,snapshot_v5::parameter_writer::PROFILE,snapshot_v5::conditional_writer::PROFILE,snapshot_v5::string_writer::PROFILE,snapshot_v5::literal_writer::PROFILE,snapshot_v5::wrapped_writer::PROFILE,snapshot_v5::refined_writer::PROFILE,snapshot_v5::annotated_vars_writer::PROFILE,snapshot_v5::dates_members_writer::PROFILE,snapshot_v5::async_casing_writer::PROFILE,snapshot_v5::mobile_vars_writer::PROFILE,snapshot_v5::method_regions_writer::PROFILE,snapshot_v5::header_forms_writer::PROFILE,snapshot_v5::source_limits_writer::PROFILE,snapshot_v5::long_headers_writer::PROFILE,snapshot_v5::lexical_tail_writer::PROFILE,snapshot_v5::source_anomalies_writer::PROFILE,snapshot_v5::navigator_agreement_writer::PROFILE,snapshot_v5::navigator_owners_writer::PROFILE,snapshot_v5::navigator_sppr::PROFILE].contains(&p.as_str())],|r|r.get(0))?;
+        let leaf=leaf || ([snapshot_v5::sidecar_writer::PROFILE,snapshot_v5::context_writer::PROFILE,snapshot_v5::parameter_writer::PROFILE,snapshot_v5::conditional_writer::PROFILE,snapshot_v5::string_writer::PROFILE,snapshot_v5::literal_writer::PROFILE,snapshot_v5::wrapped_writer::PROFILE,snapshot_v5::refined_writer::PROFILE,snapshot_v5::annotated_vars_writer::PROFILE,snapshot_v5::dates_members_writer::PROFILE,snapshot_v5::async_casing_writer::PROFILE,snapshot_v5::mobile_vars_writer::PROFILE,snapshot_v5::method_regions_writer::PROFILE,snapshot_v5::header_forms_writer::PROFILE,snapshot_v5::source_limits_writer::PROFILE,snapshot_v5::long_headers_writer::PROFILE,snapshot_v5::lexical_tail_writer::PROFILE,snapshot_v5::source_anomalies_writer::PROFILE,snapshot_v5::navigator_agreement_writer::PROFILE,snapshot_v5::navigator_owners_writer::PROFILE,snapshot_v5::navigator_sppr::PROFILE].contains(&p.as_str()) && self.connection.query_row("SELECT kind IN ('Catalog','Document','InformationRegister') FROM objects WHERE object_id=?1",[owner],|r|r.get::<_,bool>(0))?);
         // All rows preflighted before text/JSON allocation; immutable connection.
-        let sql="SELECT 'descriptor' AS role,o.xml_path AS path,o.name AS name,o.object_id AS id,0 AS a,length(s.content) AS b FROM objects o JOIN sources s ON s.path=o.xml_path WHERE o.parent_id=?1 AND (o.kind IN ('Form','Template') OR (o.kind='Subsystem' AND (SELECT profile FROM metadata) IN ('linux-v5-corpus1-xml221-r09','linux-v5-corpus-bin1-xml221-r09','linux-v5-corpus-help1-xml221-r09','linux-v5-corpus-config1-xml221-r09','linux-v5-diagnostics1-xml221-r09','linux-v5-optional-form1-xml221-r09','linux-v5-root-sidecar1-xml221-r09','linux-v5-context1-xml221-r09','linux-v5-parameters1-xml221-r09','linux-v5-conditionals1-xml221-r09','linux-v5-strings1-xml221-r09','linux-v5-literals1-xml221-r09','linux-v5-wrapped1-xml221-r09','linux-v5-refinements1-xml221-r09','linux-v5-annotated-vars1-xml221-r09','linux-v5-dates-members1-xml221-r09','linux-v5-async-casing1-xml221-r09','linux-v5-mobile-vars1-xml221-r09','linux-v5-method-regions1-xml221-r09','linux-v5-header-forms1-xml221-r09','linux-v5-source-limits1-xml221-r09')) OR (o.kind='Recalculation' AND (SELECT profile FROM metadata) IN ('linux-v5-register1-xml221-r09','linux-v5-report1-xml221-r09','linux-v5-workflow1-xml221-r09','linux-v5-corpus1-xml221-r09','linux-v5-corpus-bin1-xml221-r09','linux-v5-corpus-help1-xml221-r09','linux-v5-corpus-config1-xml221-r09','linux-v5-diagnostics1-xml221-r09','linux-v5-optional-form1-xml221-r09','linux-v5-root-sidecar1-xml221-r09','linux-v5-context1-xml221-r09','linux-v5-parameters1-xml221-r09','linux-v5-conditionals1-xml221-r09','linux-v5-strings1-xml221-r09','linux-v5-literals1-xml221-r09','linux-v5-wrapped1-xml221-r09','linux-v5-refinements1-xml221-r09','linux-v5-annotated-vars1-xml221-r09','linux-v5-dates-members1-xml221-r09','linux-v5-async-casing1-xml221-r09','linux-v5-mobile-vars1-xml221-r09','linux-v5-method-regions1-xml221-r09','linux-v5-header-forms1-xml221-r09','linux-v5-source-limits1-xml221-r09'))) UNION ALL SELECT p.role,p.path,p.path,p.object_id,0,length(s.content) FROM companion_payloads p JOIN sources s ON s.path=p.path WHERE p.object_id=?1 UNION ALL SELECT 'reference',c.reference_path,c.reference_path,c.object_id,c.byte_start,c.byte_end FROM companions c WHERE c.object_id=?1";
-        let mut q=self.connection.prepare(&format!("SELECT length(CAST(role AS BLOB))+length(CAST(path AS BLOB))+length(CAST(name AS BLOB))+256 FROM ({sql}) LIMIT ?2"))?;
+        let sql="SELECT 'descriptor' AS role,o.xml_path AS path,o.name AS name,o.object_id AS id,0 AS a,length(s.content) AS b FROM objects o JOIN sources s ON s.path=o.xml_path WHERE o.parent_id=?1 AND (o.kind IN ('Form','Template') OR (?2 AND o.kind IN ('Subsystem','Recalculation')) OR (o.kind='Subsystem' AND (SELECT profile FROM metadata) IN ('linux-v5-corpus1-xml221-r09','linux-v5-corpus-bin1-xml221-r09','linux-v5-corpus-help1-xml221-r09','linux-v5-corpus-config1-xml221-r09','linux-v5-diagnostics1-xml221-r09','linux-v5-optional-form1-xml221-r09','linux-v5-root-sidecar1-xml221-r09','linux-v5-context1-xml221-r09','linux-v5-parameters1-xml221-r09','linux-v5-conditionals1-xml221-r09','linux-v5-strings1-xml221-r09','linux-v5-literals1-xml221-r09','linux-v5-wrapped1-xml221-r09','linux-v5-refinements1-xml221-r09','linux-v5-annotated-vars1-xml221-r09','linux-v5-dates-members1-xml221-r09','linux-v5-async-casing1-xml221-r09','linux-v5-mobile-vars1-xml221-r09','linux-v5-method-regions1-xml221-r09','linux-v5-header-forms1-xml221-r09','linux-v5-source-limits1-xml221-r09')) OR (o.kind='Recalculation' AND (SELECT profile FROM metadata) IN ('linux-v5-register1-xml221-r09','linux-v5-report1-xml221-r09','linux-v5-workflow1-xml221-r09','linux-v5-corpus1-xml221-r09','linux-v5-corpus-bin1-xml221-r09','linux-v5-corpus-help1-xml221-r09','linux-v5-corpus-config1-xml221-r09','linux-v5-diagnostics1-xml221-r09','linux-v5-optional-form1-xml221-r09','linux-v5-root-sidecar1-xml221-r09','linux-v5-context1-xml221-r09','linux-v5-parameters1-xml221-r09','linux-v5-conditionals1-xml221-r09','linux-v5-strings1-xml221-r09','linux-v5-literals1-xml221-r09','linux-v5-wrapped1-xml221-r09','linux-v5-refinements1-xml221-r09','linux-v5-annotated-vars1-xml221-r09','linux-v5-dates-members1-xml221-r09','linux-v5-async-casing1-xml221-r09','linux-v5-mobile-vars1-xml221-r09','linux-v5-method-regions1-xml221-r09','linux-v5-header-forms1-xml221-r09','linux-v5-source-limits1-xml221-r09'))) UNION ALL SELECT p.role,p.path,p.path,p.object_id,0,length(s.content) FROM companion_payloads p JOIN sources s ON s.path=p.path WHERE p.object_id=?1 UNION ALL SELECT 'reference',c.reference_path,c.reference_path,c.object_id,c.byte_start,c.byte_end FROM companions c WHERE c.object_id=?1";
+        let mut q=self.connection.prepare(&format!("SELECT length(CAST(role AS BLOB))+length(CAST(path AS BLOB))+length(CAST(name AS BLOB))+256 FROM ({sql}) LIMIT ?3"))?;
         let mut rows = q.query(rusqlite::params![
             owner,
+            p == snapshot_v5::navigator_sppr::PROFILE,
             i64::try_from(limits.rows)
                 .ok()
                 .and_then(|n| n.checked_add(1))
@@ -749,7 +776,7 @@ impl LinuxSnapshotReader {
         let mut q = self.connection.prepare(&format!(
             "SELECT * FROM ({sql}) ORDER BY role COLLATE BINARY,path COLLATE BINARY"
         ))?;
-        let rows=q.query_map([owner],|r| {let role:String=r.get(0)?;let path:String=r.get(1)?;let id:i64=r.get(3)?; Ok(serde_json::json!({"type":"companion","role":role,"name":r.get::<_,String>(2)?,"object_id":id,"path":path,"content":"not_analyzed","source":{"saved_path":path,"start_byte":r.get::<_,i64>(4)?,"end_byte":r.get::<_,i64>(5)?},"children":if role=="descriptor" {serde_json::json!({"level":"object","parent_id":id})}else{serde_json::Value::Null}}))})?;
+        let rows=q.query_map(rusqlite::params![owner, p == snapshot_v5::navigator_sppr::PROFILE],|r| {let role:String=r.get(0)?;let path:String=r.get(1)?;let id:i64=r.get(3)?; Ok(serde_json::json!({"type":"companion","role":role,"name":r.get::<_,String>(2)?,"object_id":id,"path":path,"content":"not_analyzed","source":{"saved_path":path,"start_byte":r.get::<_,i64>(4)?,"end_byte":r.get::<_,i64>(5)?},"children":if role=="descriptor" {serde_json::json!({"level":"object","parent_id":id})}else{serde_json::Value::Null}}))})?;
         Ok(
             serde_json::json!({"items":rows.collect::<std::result::Result<Vec<_>,_>>()?,"complete_branch":true,"coverage":"structure_only","contents":"not_analyzed","payload_presence":if self.connection.query_row("SELECT EXISTS(SELECT 1 FROM companion_payloads WHERE object_id=?1 AND (?2 OR role<>'additional'))",rusqlite::params![owner,leaf],|r|r.get::<_,bool>(0))? {"present_unparsed"}else if self.connection.query_row("SELECT EXISTS(SELECT 1 FROM companions WHERE object_id=?1)",[owner],|r|r.get::<_,bool>(0))? {"absent"}else{"not_applicable"}}),
         )
@@ -802,6 +829,7 @@ impl LinuxSnapshotReader {
             snapshot_v5::source_anomalies_writer::PROFILE,
             snapshot_v5::navigator_agreement_writer::PROFILE,
             snapshot_v5::navigator_owners_writer::PROFILE,
+            snapshot_v5::navigator_sppr::PROFILE,
         ]
         .contains(&p.as_str())
         {
@@ -870,6 +898,7 @@ impl LinuxSnapshotReader {
             snapshot_v5::source_anomalies_writer::PROFILE,
             snapshot_v5::navigator_agreement_writer::PROFILE,
             snapshot_v5::navigator_owners_writer::PROFILE,
+            snapshot_v5::navigator_sppr::PROFILE,
         ]
         .contains(&p.as_str())
         {
@@ -915,6 +944,7 @@ impl LinuxSnapshotReader {
                 | snapshot_v5::source_anomalies_writer::PROFILE
                 | snapshot_v5::navigator_agreement_writer::PROFILE
                 | snapshot_v5::navigator_owners_writer::PROFILE
+                | snapshot_v5::navigator_sppr::PROFILE
         ))
     }
     pub fn declarations(
@@ -1072,6 +1102,7 @@ impl LinuxSnapshotReader {
             snapshot_v5::source_anomalies_writer::PROFILE,
             snapshot_v5::navigator_agreement_writer::PROFILE,
             snapshot_v5::navigator_owners_writer::PROFILE,
+            snapshot_v5::navigator_sppr::PROFILE,
         ]
         .contains(&profile.as_str())
         {
@@ -1152,6 +1183,7 @@ impl LinuxSnapshotReader {
             snapshot_v5::source_anomalies_writer::PROFILE,
             snapshot_v5::navigator_agreement_writer::PROFILE,
             snapshot_v5::navigator_owners_writer::PROFILE,
+            snapshot_v5::navigator_sppr::PROFILE,
         ]
         .contains(&profile.as_str())
         {
@@ -1209,6 +1241,7 @@ fn verify_saved_sources_mode(
         snapshot_v5::source_anomalies_writer::PROFILE,
         snapshot_v5::navigator_agreement_writer::PROFILE,
         snapshot_v5::navigator_owners_writer::PROFILE,
+        snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&profile.as_str()))
         != diagnostics_bytes.is_some()
@@ -1244,12 +1277,21 @@ fn verify_saved_sources_mode(
         snapshot_v5::source_anomalies_writer::PROFILE,
         snapshot_v5::navigator_agreement_writer::PROFILE,
         snapshot_v5::navigator_owners_writer::PROFILE,
+        snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&profile.as_str())
     {
         let stored = snapshot_v5::corpus_bin_writer::stored_policy(original)?;
         let n = bin_bytes.ok_or(Error::Contract("opaque_bin_verify_limit_required".into()))?;
-        let mut policy = snapshot_v5::corpus_bin_writer::Policy::new(n, &stored.globals)?;
+        let mut policy = snapshot_v5::corpus_bin_writer::Policy::with_template_limit(
+            n,
+            &stored.globals,
+            stored.large_templates,
+        )?;
+        if stored.omitted_templates.iter().any(|_| n != stored.bytes) {
+            return Err(Error::Contract("sppr_verify_omission_limit".into()));
+        }
+        policy.omitted_templates = stored.omitted_templates.clone();
         policy.root_help = stored.root_help;
         policy.configuration = stored.configuration;
         policy.diagnostics = diagnostics_bytes;
@@ -1273,6 +1315,8 @@ fn verify_saved_sources_mode(
         policy.lexical_tail = stored.lexical_tail;
         policy.source_anomalies = stored.source_anomalies;
         policy.command_owners = stored.command_owners;
+        policy.omit_command_help = stored.omit_command_help;
+        policy.processor_help = stored.processor_help;
         Some(policy)
     } else {
         if bin_bytes.is_some() {
@@ -1338,7 +1382,12 @@ fn verify_saved_sources_mode(
     let corpus = original.query_row("SELECT profile FROM metadata", [], |r| {
         r.get::<_, String>(0)
     })? == snapshot_v5::corpus_writer::PROFILE;
-    if bin_policy.as_ref().is_some_and(|b| b.command_owners) {
+    if bin_policy
+        .as_ref()
+        .is_some_and(|b| b.processor_help.is_some())
+    {
+        scratch.execute_batch(&snapshot_v5::navigator_sppr::schema())?;
+    } else if bin_policy.as_ref().is_some_and(|b| b.command_owners) {
         scratch.execute_batch(&snapshot_v5::navigator_owners_writer::schema())?;
     } else if bin_policy
         .as_ref()
@@ -1495,7 +1544,9 @@ fn verify_saved_sources_mode(
     }
     if let Some(policy) = stream {
         tx.commit()?;
-        let coverage = if let Some(bin) = bin_policy {
+        let omit_command_help = bin_policy.as_ref().is_some_and(|b| b.omit_command_help);
+        let processor_help = bin_policy.as_ref().and_then(|b| b.processor_help.clone());
+        let mut coverage = if let Some(bin) = bin_policy {
             snapshot_v5::streaming_facts::derive_corpus_bin(&mut scratch, policy, bin)?
         } else if corpus {
             snapshot_v5::streaming_facts::derive_corpus(&mut scratch, policy)?
@@ -1526,6 +1577,18 @@ fn verify_saved_sources_mode(
         } else {
             snapshot_v5::streaming_facts::derive(&mut scratch, policy)?
         };
+        if omit_command_help {
+            let manifest = snapshot_v5::navigator_command_help_writer::read_manifest(original)?;
+            snapshot_v5::navigator_command_help_writer::apply_coverage(&mut coverage, &manifest)?;
+            if let Some(owners) = processor_help {
+                snapshot_v5::navigator_sppr::apply_coverage(
+                    &mut coverage,
+                    &manifest,
+                    &owners,
+                    snapshot_v5::corpus_bin_writer::stored_policy(original)?.bytes,
+                )?;
+            }
+        }
         let saved: String =
             original.query_row("SELECT coverage_draft FROM metadata", [], |r| r.get(0))?;
         if serde_json::from_str::<serde_json::Value>(&saved)

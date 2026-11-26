@@ -44,7 +44,8 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
     let coverage = &info["coverage"];
     let count = |key: &str| coverage.get(key).and_then(Value::as_u64);
     let agreement = info["profile"] == crate::snapshot_v5::navigator_agreement_writer::PROFILE
-        || info["profile"] == crate::snapshot_v5::navigator_owners_writer::PROFILE;
+        || info["profile"] == crate::snapshot_v5::navigator_owners_writer::PROFILE
+        || info["profile"] == crate::snapshot_v5::navigator_sppr::PROFILE;
     let scoped_anomalies =
         agreement || info["profile"] == crate::snapshot_v5::source_anomalies_writer::PROFILE;
     let mut accepted = coverage
@@ -76,6 +77,36 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
             "coverage_sha256":digest
         }
     });
+    if info["profile"] == crate::snapshot_v5::navigator_sppr::PROFILE {
+        for kind in ["help_total", "oversize_template"] {
+            let item = &coverage["source_exclusions"][kind];
+            result["coverage"]["source_exclusions"][kind] =
+                json!({"count": item["count"].as_u64(), "status":"excluded_not_read"});
+        }
+    }
+    if info["profile"] == crate::snapshot_v5::navigator_sppr::PROFILE {
+        let count = coverage["source_exclusions"]["common_command_help"]["count"]
+            .as_u64()
+            .ok_or_else(|| Error::Contract("common_command_help_coverage".into()))?;
+        result["coverage"]["source_exclusions"]["common_command_help"] = json!({
+            "status":"excluded_not_read","count":count,
+            "reason":crate::snapshot_v5::navigator_command_help_writer::REASON
+        });
+    }
+    if info["profile"] == crate::snapshot_v5::navigator_sppr::PROFILE {
+        let omitted = coverage["source_exclusions"]["processor_root_help"]["count"]
+            .as_u64()
+            .ok_or_else(|| Error::Contract("report_resources_coverage".into()))?;
+        let svg = coverage["report_scd_svg"]["count"]
+            .as_u64()
+            .ok_or_else(|| Error::Contract("report_resources_coverage".into()))?;
+        result["coverage"]["source_exclusions"]["processor_root_help"] = json!({
+            "status":"excluded_not_read","count":omitted,
+            "reason":crate::snapshot_v5::navigator_sppr::REASON
+        });
+        result["coverage"]["report_scd_svg"] =
+            json!({"status":"opaque_owned_unparsed","count":svg});
+    }
     if [
         crate::snapshot_v5::diagnostics_writer::PROFILE,
         crate::snapshot_v5::optional_form_writer::PROFILE,
@@ -99,6 +130,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -134,6 +166,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -255,6 +288,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -299,6 +333,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -332,6 +367,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -366,6 +402,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -401,6 +438,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -437,6 +475,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -474,6 +513,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -512,6 +552,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -551,6 +592,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -591,6 +633,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -632,6 +675,7 @@ fn wire_metadata(info: Value) -> Result<Value, Error> {
         crate::snapshot_v5::source_anomalies_writer::PROFILE,
         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+        crate::snapshot_v5::navigator_sppr::PROFILE,
     ]
     .contains(&info["profile"].as_str().unwrap_or(""))
     {
@@ -901,6 +945,7 @@ impl Router {
                         crate::snapshot_v5::source_anomalies_writer::PROFILE,
                         crate::snapshot_v5::navigator_agreement_writer::PROFILE,
                         crate::snapshot_v5::navigator_owners_writer::PROFILE,
+                        crate::snapshot_v5::navigator_sppr::PROFILE,
                     ]
                     .contains(&self.metadata["profile"].as_str().unwrap_or(""))
                     {
@@ -973,6 +1018,7 @@ impl Router {
                     crate::snapshot_v5::source_anomalies_writer::PROFILE,
                     crate::snapshot_v5::navigator_agreement_writer::PROFILE,
                     crate::snapshot_v5::navigator_owners_writer::PROFILE,
+                    crate::snapshot_v5::navigator_sppr::PROFILE,
                 ]
                 .contains(&self.metadata["profile"].as_str().unwrap_or(""))))
             && self.has_companions()
@@ -1030,6 +1076,7 @@ impl Router {
             crate::snapshot_v5::source_anomalies_writer::PROFILE,
             crate::snapshot_v5::navigator_agreement_writer::PROFILE,
             crate::snapshot_v5::navigator_owners_writer::PROFILE,
+            crate::snapshot_v5::navigator_sppr::PROFILE,
         ]
         .contains(&self.metadata["profile"].as_str().unwrap_or(""))
     }
@@ -1072,6 +1119,7 @@ impl Router {
             crate::snapshot_v5::source_anomalies_writer::PROFILE,
             crate::snapshot_v5::navigator_agreement_writer::PROFILE,
             crate::snapshot_v5::navigator_owners_writer::PROFILE,
+            crate::snapshot_v5::navigator_sppr::PROFILE,
         ]
         .contains(&self.metadata["profile"].as_str().unwrap_or(""))
     }
@@ -1080,6 +1128,7 @@ impl Router {
             crate::snapshot_v5::source_anomalies_writer::PROFILE,
             crate::snapshot_v5::navigator_agreement_writer::PROFILE,
             crate::snapshot_v5::navigator_owners_writer::PROFILE,
+            crate::snapshot_v5::navigator_sppr::PROFILE,
         ]
         .contains(&self.metadata["profile"].as_str().unwrap_or(""))
         {
@@ -1221,6 +1270,10 @@ impl ToolRouter for Router {
             schema["properties"]["start_byte"] = json!({"type":"integer","minimum":0});
             schema["properties"]["end_byte"] = json!({"type":"integer","minimum":0});
         }
+        if self.metadata["profile"] == crate::snapshot_v5::navigator_sppr::PROFILE {
+            result["tools"][0]["inputSchema"]["properties"]["excluded_path"] =
+                json!({"type":"string", "minLength":1, "maxLength":1024});
+        }
         result
     }
     fn call(&self, params: &Value) -> Result<Value, RouteError> {
@@ -1232,6 +1285,20 @@ impl ToolRouter for Router {
         }
         match text(params, "name", 64)? {
             "metadata" => {
+                if args.get("excluded_path").is_some()
+                    && self.metadata["profile"] == crate::snapshot_v5::navigator_sppr::PROFILE
+                {
+                    keys(args, &["excluded_path"])?;
+                    let path = text(args, "excluded_path", 1024)?;
+                    crate::xml221::path_check(path).map_err(|_| RouteError::InvalidArgs)?;
+                    return Ok(match self.reader.sppr_exclusion(path) {
+                        Ok(Some((reason, size))) => self.success(
+                            json!({"status":"excluded","reason":reason,"size_bytes":size}),
+                        ),
+                        Ok(None) => self.success(json!({"status":"not_in_exclusion_manifest"})),
+                        Err(e) => refusal(e),
+                    });
+                }
                 keys(args, &[])?;
                 Ok(self.success(json!({"status":"ok","source_budget_bytes":MAX_SOURCE_BYTES,"tree_nodes":MAX_TREE_NODES,"tree_text_budget_bytes":MAX_TREE_TEXT_BYTES})))
             }

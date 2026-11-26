@@ -63,7 +63,7 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
     companion_writer::validate_metadata_mode(
         db, true, true, true, true, true, true, true, true, true, true, true, true, true, false,
         false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false,
+        false, false, false, false, false, false, false, false, false,
     )
 }
 pub fn build(
@@ -121,5 +121,8 @@ pub fn build(
         false,
         false,
         false,
+        false,
+        false,
+        None,
     )
 }

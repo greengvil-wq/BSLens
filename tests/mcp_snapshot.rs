@@ -12285,3 +12285,430 @@ fn exercise_literals_and_wrapped_headers(
     assert!(String::from_utf8_lossy(&verify(&f).stderr).contains("VerifyFacts"));
     assert_eq!(fs::read_dir(&f.stage).unwrap().count(), 0);
 }
+
+#[test]
+fn navigator_report_resources_keep_scd_svg_and_only_omit_named_root_help() {
+    let mut f = Fixture::new(&[]);
+    fs::create_dir(&f.repo).unwrap();
+    let git = |args: &[&str]| {
+        let o = Command::new("/usr/bin/git")
+            .arg("-C")
+            .arg(&f.repo)
+            .args(args)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .output()
+            .unwrap();
+        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+        String::from_utf8(o.stdout).unwrap().trim().to_owned()
+    };
+    git(&["init", "-q"]);
+    let put = |path: &str, bytes: &[u8]| {
+        let p = f.repo.join(path);
+        fs::create_dir_all(p.parent().unwrap()).unwrap();
+        fs::write(p, bytes).unwrap();
+    };
+    let desc = |kind: &str, name: &str, id, properties: &str, children: &str| {
+        format!(
+        "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.21\"><{kind} uuid=\"81500000-0000-0000-0000-{id:012}\"><Properties><Name>{name}</Name>{properties}</Properties>{children}</{kind}></MetaDataObject>")
+    };
+    const SVG: &str = "Reports/R/Templates/Layout/Ext/Template/abcde.svg";
+    const XML: &str = "Reports/R/Templates/Layout/Ext/Template.xml";
+    const DESC: &str = "Reports/R/Templates/Layout.xml";
+    const ASSET: &str = "DataProcessors/Omit/Ext/Help/en/archive.bin";
+    const KEEP: &str = "DataProcessors/Keep/Ext/Help/ru.html";
+    const NESTED: &str = "DataProcessors/Omit/Forms/Card/Ext/Help/ru.html";
+    const RAW: &[u8] = b"\x00\xff<opaque>&not-parsed;";
+    const NEW: &str = "build-navigator-sppr";
+    const OLD: &str = "build-navigator-owners";
+    let scd = |uri: &str, local: &str| {
+        format!(
+            r#"<DataCompositionSchema xmlns="http://v8.1c.ru/8.1/data-composition-system/schema" xmlns:a="http://v8.1c.ru/8.1/data-composition-system/area-template" xmlns:c="http://v8.1c.ru/8.1/data-composition-system/core" xmlns:r="http://v8.1c.ru/8.3/xcf/readable"><template><template><a:item><a:tableCell><a:appearance><c:item><c:value><r:{local}>{uri}</r:{local}></c:value></c:item></a:appearance></a:tableCell></a:item></template></template></DataCompositionSchema>"#
+        )
+    };
+    let data_desc = desc(
+        "Template",
+        "Layout",
+        6,
+        "<TemplateType>DataCompositionSchema</TemplateType>",
+        "",
+    );
+    for (p, b) in [
+        ("Configuration.xml", desc("Configuration","Fixture",1,"","<ChildObjects><DataProcessor>Omit</DataProcessor><DataProcessor>Keep</DataProcessor><Report>R</Report></ChildObjects>")),
+        ("DataProcessors/Omit.xml", desc("DataProcessor","Omit",2,"","<ChildObjects><Form>Card</Form></ChildObjects>")),
+        ("DataProcessors/Keep.xml", desc("DataProcessor","Keep",3,"","")),
+        ("Reports/R.xml", desc("Report","R",4,"","<ChildObjects><Template>Layout</Template></ChildObjects>")),
+        ("DataProcessors/Omit/Forms/Card.xml", desc("Form","Card",5,"","")),
+        (DESC, data_desc.clone()),
+        (XML, scd("abcde.svg", "Abs")),
+        ("DataProcessors/Omit/Forms/Card/Ext/Form.xml", "<opaque/>".into()),
+    ] { put(p,b.as_bytes()); }
+    put("DataProcessors/Omit/Ext/ManagerModule.bsl", TEXT.as_bytes());
+    for path in [NESTED, KEEP] {
+        put(path, b"kept");
+        put(&path.replace("/Help/ru.html", "/Help.xml"), b"<opaque/>");
+    }
+    let commit = |label: &str| {
+        git(&["add", "-A"]);
+        git(&[
+            "-c",
+            "user.name=Synthetic",
+            "-c",
+            "user.email=synthetic@invalid",
+            "commit",
+            "--allow-empty",
+            "-qm",
+            label,
+        ]);
+    };
+    let build = |profile: &str, out: &str, owners: Option<&str>| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_bslens-v5"));
+        cmd.args([
+            profile,
+            f.repo.to_str().unwrap(),
+            &git(&["rev-parse", "HEAD"]),
+            &git(&["rev-parse", "HEAD^{tree}"]),
+            "synthetic:report-resources",
+            f.root.join(out).to_str().unwrap(),
+            "100",
+            "1048576",
+            "8388608",
+            "33554432",
+            "1000",
+            "1000",
+            "1000",
+            "1048576",
+            "8388608",
+            "30000",
+            "10000",
+            "1048576",
+            "30000",
+            "[]",
+            if owners.is_some() {
+                "33554432"
+            } else {
+                "25165824"
+            },
+            "1048576",
+        ]);
+        if let Some(owners) = owners {
+            cmd.arg(owners);
+        }
+        cmd.output().unwrap()
+    };
+    commit("previous profile");
+    let legacy = build(OLD, "legacy", None);
+    assert!(
+        legacy.status.success(),
+        "{}",
+        String::from_utf8_lossy(&legacy.stderr)
+    );
+    let legacy: Value = serde_json::from_slice(&legacy.stdout).unwrap();
+    put(SVG, RAW);
+    put("DataProcessors/Omit/Ext/Help.xml", b"not read");
+    put("DataProcessors/Omit/Ext/Help/ru.html", b"not read");
+    put(ASSET, b"x");
+    fs::OpenOptions::new()
+        .write(true)
+        .open(f.repo.join(ASSET))
+        .unwrap()
+        .set_len(1048577)
+        .unwrap();
+    commit("owned opaque svg, excluded large root help");
+    let built = build(NEW, "new", Some("[\"Omit\"]"));
+    assert!(
+        built.status.success(),
+        "{}",
+        String::from_utf8_lossy(&built.stderr)
+    );
+    let built: Value = serde_json::from_slice(&built.stdout).unwrap();
+    for (uri, local, label) in [
+        ("other.svg", "Abs", "wrong"),
+        ("dir/abcde.svg", "Abs", "prefix"),
+        ("abcde.svg", "NotAbs", "tag"),
+    ] {
+        put(XML, scd(uri, local).as_bytes());
+        commit(label);
+        let o = build(NEW, label, Some("[\"Omit\"]"));
+        assert!(!o.status.success(), "{label}");
+        assert!(String::from_utf8_lossy(&o.stderr).contains("report_svg_reference_inventory"));
+    }
+    put(XML, scd("abcde.svg", "Abs").as_bytes());
+    put(
+        DESC,
+        data_desc
+            .replace("DataCompositionSchema", "SpreadsheetDocument")
+            .as_bytes(),
+    );
+    commit("wrong template type");
+    assert!(!build(NEW, "wrong-type", Some("[\"Omit\"]"))
+        .status
+        .success());
+    put(DESC, data_desc.as_bytes());
+    put("DataProcessors/Keep/Ext/Help/en/local.bin", b"x");
+    commit("other processor help is omitted");
+    assert!(build(NEW, "other-processor", Some("[\"Omit\"]"))
+        .status
+        .success());
+    fs::remove_dir_all(&f.repo).unwrap();
+    for s in [&legacy, &built] {
+        let o = Command::new(env!("CARGO_BIN_EXE_bslens-v5"))
+            .env("PATH", "")
+            .args([
+                "verify",
+                s["path"].as_str().unwrap(),
+                "--staging-dir",
+                f.stage.to_str().unwrap(),
+                "--max-sqlite-bytes",
+                "33554432",
+                "--expected-sha256",
+                s["file_sha256"].as_str().unwrap(),
+                "--max-sources",
+                "100",
+                "--max-source-bytes",
+                "1048576",
+                "--max-total-bytes",
+                "8388608",
+                "--max-scratch-bytes",
+                "33554432",
+                "--max-facts",
+                "10000",
+                "--max-coverage-bytes",
+                "1048576",
+                "--facts-time-ms",
+                "30000",
+                "--max-opaque-bin-bytes",
+                if s["profile"] == "linux-v5-navigator-owners1-xml221-r09" {
+                    "25165824"
+                } else {
+                    "33554432"
+                },
+                "--max-diagnostics-bytes",
+                "1048576",
+            ])
+            .output()
+            .unwrap();
+        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    }
+    f.built = BuiltSnapshot {
+        path: PathBuf::from(built["path"].as_str().unwrap()),
+        snapshot_id: built["snapshot_id"].as_str().unwrap().into(),
+        file_sha256: built["file_sha256"].as_str().unwrap().into(),
+        facts_sha256: built["facts_sha256"].as_str().unwrap().into(),
+        reused: false,
+    };
+    let db = rusqlite::Connection::open(&f.built.path).unwrap();
+    let record:(String,String) = db.query_row(
+        "SELECT c.role,o.xml_path FROM companion_payloads c JOIN objects o ON o.object_id=c.object_id WHERE c.path=?1",
+        [SVG],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+    assert_eq!(record, ("additional".into(), DESC.into()));
+    drop(db);
+    let mut peer = Peer::start(&f);
+    let info = peer.data("metadata", json!({}));
+    assert_eq!(
+        info["snapshot"]["coverage"]["source_exclusions"]["processor_root_help"]["count"],
+        3
+    );
+    assert_eq!(info["snapshot"]["coverage"]["report_scd_svg"]["count"], 1);
+    assert_eq!(
+        info["snapshot"]["coverage"]["report_scd_svg"]["status"],
+        "opaque_owned_unparsed"
+    );
+    for path in [KEEP, NESTED] {
+        let result = peer.data("metadata", json!({"excluded_path":path}));
+        assert_eq!(result["data"]["status"], "excluded");
+        assert_eq!(result["data"]["size_bytes"], 4);
+    }
+    let absent = peer.data("metadata", json!({"excluded_path":"Unknown.xml"}));
+    assert_eq!(absent["data"]["status"], "not_in_exclusion_manifest");
+    for (path, expected) in [(SVG, RAW)] {
+        let q = peer.data(
+            "source",
+            json!({"saved_path":path,"start_byte":0,"end_byte":expected.len()}),
+        );
+        assert_eq!(bytes(&q["data"]), expected);
+    }
+    let refused = peer.call(
+        "source",
+        json!({"saved_path":ASSET,"start_byte":0,"end_byte":1}),
+    );
+    assert_eq!(refused["result"]["isError"], true);
+    peer.finish();
+}
+
+#[test]
+fn sppr_enum_form_exchange_html_and_bounded_template_identity() {
+    let f = Fixture::new(&[]);
+    fs::create_dir(&f.repo).unwrap();
+    let git = |args: &[&str]| {
+        let o = Command::new("/usr/bin/git")
+            .arg("-C")
+            .arg(&f.repo)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+        String::from_utf8(o.stdout).unwrap().trim().to_owned()
+    };
+    git(&["init", "-q"]);
+    let xml = |kind: &str, name: &str, id: u32, props: &str, ch: &str| {
+        format!(
+        "<MetaDataObject xmlns=\"http://v8.1c.ru/8.3/MDClasses\" version=\"2.21\"><{kind} uuid=\"81300000-0000-0000-0000-{id:012}\"><Properties><Name>{name}</Name>{props}</Properties>{ch}</{kind}></MetaDataObject>")
+    };
+    let put = |path: &str, bytes: &[u8]| {
+        let p = f.repo.join(path);
+        fs::create_dir_all(p.parent().unwrap()).unwrap();
+        fs::write(p, bytes).unwrap();
+    };
+    let cfg=xml("Configuration","Fixture",1,"","<ChildObjects><Enum>E</Enum><ExchangePlan>X</ExchangePlan><CommonTemplate>T</CommonTemplate></ChildObjects>");
+    let enum_path = "Enums/E/Forms/Card.xml";
+    let html_path = "ExchangePlans/X/Templates/HelpPage/Ext/Template/ru.html";
+    let big = "CommonTemplates/T/Ext/Template.bin";
+    for (p, b) in [
+        ("Configuration.xml", cfg),
+        (
+            "Enums/E.xml",
+            xml(
+                "Enum",
+                "E",
+                2,
+                "",
+                "<ChildObjects><Form>Card</Form></ChildObjects>",
+            ),
+        ),
+        (enum_path, xml("Form", "Card", 3, "", "")),
+        (
+            "ExchangePlans/X.xml",
+            xml(
+                "ExchangePlan",
+                "X",
+                4,
+                "",
+                "<ChildObjects><Template>HelpPage</Template></ChildObjects>",
+            ),
+        ),
+        (
+            "ExchangePlans/X/Templates/HelpPage.xml",
+            xml(
+                "Template",
+                "HelpPage",
+                5,
+                "<TemplateType>HTMLDocument</TemplateType>",
+                "",
+            ),
+        ),
+        (
+            "CommonTemplates/T.xml",
+            xml("CommonTemplate", "T", 6, "", ""),
+        ),
+    ] {
+        put(p, b.as_bytes());
+    }
+    for (p, b) in [
+        ("Enums/E/Forms/Card/Ext/Form.xml", "<opaque/>"),
+        ("Enums/E/Forms/Card/Ext/Form/Module.bsl", TEXT),
+        ("ExchangePlans/X/Ext/Content.xml", "opaque"),
+        (
+            "ExchangePlans/X/Templates/HelpPage/Ext/Template.xml",
+            "<Help xmlns=\"http://v8.1c.ru/8.3/xcf/extrnprops\"/>",
+        ),
+        (html_path, "<b>example</b>"),
+        (big, "0123456789"),
+    ] {
+        put(p, b.as_bytes());
+    }
+    git(&["add", "-A"]);
+    git(&[
+        "-c",
+        "user.name=Synthetic",
+        "-c",
+        "user.email=synthetic@invalid",
+        "commit",
+        "-qm",
+        "synthetic",
+    ]);
+    let sha = git(&["rev-parse", "HEAD"]);
+    let tree = git(&["rev-parse", "HEAD^{tree}"]);
+    let build = |profile: &str, limit: &str, out: &str| {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_bslens-v5"));
+        cmd.args([
+            profile,
+            f.repo.to_str().unwrap(),
+            &sha,
+            &tree,
+            "synthetic:sppr",
+            f.root.join(out).to_str().unwrap(),
+            "100",
+            "1048576",
+            "8388608",
+            "33554432",
+            "1000",
+            "1000",
+            "1000",
+            "1048576",
+            "8388608",
+            "30000",
+            "10000",
+            "1048576",
+            "30000",
+            "[]",
+        ]);
+        if let Some(limit) = (limit != "default").then_some(limit) {
+            cmd.arg(limit);
+        }
+        cmd.arg("1048576");
+        if profile == "build-navigator-sppr" {
+            cmd.arg("[]");
+        }
+        cmd.output().unwrap()
+    };
+    let old = build("build-navigator-owners", "24", "old");
+    assert!(!old.status.success()); // Старый профиль не принимает новые пути.
+    let trial = |name, limit| {
+        let o = build("build-navigator-sppr", limit, name);
+        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+        serde_json::from_slice::<Value>(&o.stdout).unwrap()
+    };
+    let saved = trial("saved", "32");
+    assert_eq!(
+        trial("default-bin", "default")["snapshot_id"],
+        trial("explicit-32mib", "33554432")["snapshot_id"]
+    );
+    assert_ne!(
+        saved["snapshot_id"],
+        trial("new-limits", "16")["snapshot_id"]
+    );
+    let skip = trial("skip", "8");
+    let db = rusqlite::Connection::open(skip["path"].as_str().unwrap()).unwrap();
+    let manifest: String = db
+        .query_row("SELECT input_manifest FROM metadata", [], |r| r.get(0))
+        .unwrap();
+    let manifest: Value = serde_json::from_str(&manifest).unwrap();
+    let entry = manifest["excluded"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e["input"]["path"] == big)
+        .unwrap();
+    assert_eq!(entry["reason"], "TemplateExceedsByteLimit");
+    assert_eq!(entry["size_bytes"], 10);
+    for (path, kind) in [(enum_path, "xml"), (html_path, "payload")] {
+        assert_eq!(
+            db.query_row("SELECT kind FROM sources WHERE path=?1", [path], |r| r
+                .get::<_, String>(
+                0
+            ))
+            .unwrap(),
+            kind
+        );
+    }
+    assert_eq!(
+        db.query_row("SELECT count(*) FROM sources WHERE path=?1", [big], |r| r
+            .get::<_, i64>(
+            0
+        ))
+        .unwrap(),
+        0
+    );
+    assert_eq!(db.query_row("SELECT o.xml_path FROM modules m JOIN objects o ON m.owner_id=o.object_id WHERE m.path=?1",["Enums/E/Forms/Card/Ext/Form/Module.bsl"],|r|r.get::<_,String>(0)).unwrap(),enum_path);
+}
