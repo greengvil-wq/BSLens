@@ -2,6 +2,7 @@
 use std::collections::BTreeMap;
 mod anomaly;
 mod condition;
+pub mod method_hash;
 pub use anomaly::{analyze_navigator_agreement_v1, analyze_source_anomalies_v1, SourceAnomaly};
 pub use condition::Branch;
 pub const MAX_BYTES: usize = 1024 * 1024;
