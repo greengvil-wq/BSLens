@@ -14,9 +14,12 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
 
 pub(super) fn validate_metadata_for(db: &Connection, sppr: bool) -> Result<()> {
     companion_writer::validate_metadata_mode(
-        db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true, sppr,
+        db,
+        if sppr {
+            &super::profile_spec::NAVIGATOR_SPPR
+        } else {
+            &super::profile_spec::NAVIGATOR_OWNERS
+        },
     )?;
     sidecar_writer::validate_summary(db)?;
     let (count, bad): (u64, bool) = db.query_row(
@@ -93,44 +96,21 @@ pub(super) fn build_for(
         output,
         limits,
         git,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        globals,
-        Some(bin_bytes),
-        true,
-        true,
-        Some(diagnostics_bytes),
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        processor_help.is_some(),
-        processor_help.is_some(),
-        processor_help,
+        if processor_help.is_some() {
+            &super::profile_spec::NAVIGATOR_SPPR
+        } else {
+            &super::profile_spec::NAVIGATOR_OWNERS
+        },
+        super::companion_writer::Runtime {
+            global_opaque: globals,
+            bin_bytes: Some(bin_bytes),
+            diagnostics: Some(diagnostics_bytes),
+            processor_help: processor_help,
+            omit_command_help: if processor_help.is_some() {
+                super::profile_spec::Feature::On
+            } else {
+                super::profile_spec::Feature::Off
+            },
+        },
     )
 }
