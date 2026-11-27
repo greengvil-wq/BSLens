@@ -106,7 +106,6 @@ pub(super) struct ProfileSpec {
     pub(super) features: Features,
     pub(super) lexical: LexicalPolicy,
     pub(super) omit_command_help: Feature,
-    #[allow(dead_code)]
     pub(super) processor_help: ProcessorHelpPolicy,
 }
 pub(super) const COMPANION: ProfileSpec = ProfileSpec {
@@ -572,6 +571,69 @@ pub(super) fn by_name(name: &str) -> Option<&'static ProfileSpec> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn writer_profile_names_match_specs() {
+        let pairs: &[(&ProfileSpec, &str)] = &[
+            (&COMPANION, super::super::companion_writer::PROFILE),
+            (&COMMON, super::super::common_writer::PROFILE),
+            (&ROOT, super::super::root_writer::PROFILE),
+            (&SHARED, super::super::shared_writer::PROFILE),
+            (&LEAF, super::super::leaf_writer::PROFILE),
+            (&JOURNAL, super::super::journal_writer::PROFILE),
+            (&SERVICE, super::super::service_writer::PROFILE),
+            (&CHART, super::super::chart_writer::PROFILE),
+            (&REGISTER, super::super::register_writer::PROFILE),
+            (&REPORT, super::super::report_writer::PROFILE),
+            (&WORKFLOW, super::super::workflow_writer::PROFILE),
+            (&CORPUS, super::super::corpus_writer::PROFILE),
+            (&CORPUS_BIN, super::super::corpus_bin_writer::PROFILE),
+            (&CORPUS_HELP, super::super::corpus_help_writer::PROFILE),
+            (&CORPUS_CONFIG, super::super::corpus_config_writer::PROFILE),
+            (&DIAGNOSTICS, super::super::diagnostics_writer::PROFILE),
+            (&OPTIONAL_FORM, super::super::optional_form_writer::PROFILE),
+            (&SIDECAR, super::super::sidecar_writer::PROFILE),
+            (&CONTEXT, super::super::context_writer::PROFILE),
+            (&PARAMETER, super::super::parameter_writer::PROFILE),
+            (&CONDITIONAL, super::super::conditional_writer::PROFILE),
+            (&STRING, super::super::string_writer::PROFILE),
+            (&LITERAL, super::super::literal_writer::PROFILE),
+            (&WRAPPED, super::super::wrapped_writer::PROFILE),
+            (&REFINED, super::super::refined_writer::PROFILE),
+            (
+                &ANNOTATED_VARS,
+                super::super::annotated_vars_writer::PROFILE,
+            ),
+            (&DATES_MEMBERS, super::super::dates_members_writer::PROFILE),
+            (&ASYNC_CASING, super::super::async_casing_writer::PROFILE),
+            (&MOBILE_VARS, super::super::mobile_vars_writer::PROFILE),
+            (
+                &METHOD_REGIONS,
+                super::super::method_regions_writer::PROFILE,
+            ),
+            (&HEADER_FORMS, super::super::header_forms_writer::PROFILE),
+            (&SOURCE_LIMITS, super::super::source_limits_writer::PROFILE),
+            (&LONG_HEADERS, super::super::long_headers_writer::PROFILE),
+            (
+                &SOURCE_ANOMALIES,
+                super::super::source_anomalies_writer::PROFILE,
+            ),
+            (&LEXICAL_TAIL, super::super::lexical_tail_writer::PROFILE),
+            (
+                &NAVIGATOR_AGREEMENT,
+                super::super::navigator_agreement_writer::PROFILE,
+            ),
+            (
+                &NAVIGATOR_OWNERS,
+                super::super::navigator_owners_writer::PROFILE,
+            ),
+            (&NAVIGATOR_SPPR, super::super::navigator_sppr::PROFILE),
+        ];
+        assert_eq!(pairs.len(), 38);
+        for (spec, name) in pairs {
+            assert_eq!(spec.name, *name);
+        }
+    }
+
     #[test]
     fn baseline_equivalence() {
         let rows = include_str!("profile_baseline.tsv").lines();

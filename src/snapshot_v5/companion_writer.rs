@@ -24,7 +24,32 @@ pub(super) struct Runtime<'a> {
     pub(super) bin_bytes: Option<u64>,
     pub(super) diagnostics: Option<u64>,
     pub(super) processor_help: Option<&'a [String]>,
-    pub(super) omit_command_help: super::profile_spec::Feature,
+}
+
+fn validate_omit_command_help(
+    profile: &super::profile_spec::ProfileSpec,
+    stored: super::profile_spec::Feature,
+) -> Result<()> {
+    if profile.omit_command_help != stored {
+        return Err(Error::Contract("omit_command_help"));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod policy_tests {
+    #[test]
+    fn rejects_mismatched_omit_command_help() {
+        use super::super::profile_spec::{Feature, NAVIGATOR_OWNERS, NAVIGATOR_SPPR};
+        assert!(matches!(
+            super::validate_omit_command_help(&NAVIGATOR_OWNERS, Feature::On),
+            Err(super::Error::Contract("omit_command_help"))
+        ));
+        assert!(matches!(
+            super::validate_omit_command_help(&NAVIGATOR_SPPR, Feature::Off),
+            Err(super::Error::Contract("omit_command_help"))
+        ));
+    }
 }
 
 /// Нормализованные эффективные бюджеты нового producer; legacy-профиль не меняется.
@@ -68,7 +93,7 @@ fn parameters(
     let source_anomalies = profile.features.source_anomalies.enabled();
     let command_owners = profile.features.command_owners.enabled();
     let large_templates = profile.features.large_templates.enabled();
-    let omit_command_help = runtime.omit_command_help.enabled();
+    let omit_command_help = profile.omit_command_help.enabled();
     let Runtime {
         global_opaque,
         bin_bytes,
@@ -320,6 +345,16 @@ pub(super) fn validate_metadata_mode(
     } else {
         None
     };
+    if let Some(policy) = &bin_policy {
+        validate_omit_command_help(
+            profile,
+            if policy.omit_command_help {
+                super::profile_spec::Feature::On
+            } else {
+                super::profile_spec::Feature::Off
+            },
+        )?;
+    }
     if p != parameters(
         stream,
         git,
@@ -335,11 +370,6 @@ pub(super) fn validate_metadata_mode(
             processor_help: bin_policy
                 .as_ref()
                 .and_then(|b| b.processor_help.as_deref()),
-            omit_command_help: if bin_policy.as_ref().is_some_and(|b| b.omit_command_help) {
-                super::profile_spec::Feature::On
-            } else {
-                super::profile_spec::Feature::Off
-            },
         },
     )? || raw != p.to_string()
         || stored != limits.json().to_string()
@@ -421,7 +451,6 @@ pub fn build(
             bin_bytes: None,
             diagnostics: None,
             processor_help: None,
-            omit_command_help: super::profile_spec::Feature::Off,
         },
     )
 }
