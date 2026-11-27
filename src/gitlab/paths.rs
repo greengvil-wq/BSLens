@@ -111,7 +111,10 @@ pub fn changed_paths(
                 && status.len() > 1
                 && status[1..].iter().all(u8::is_ascii_digit)))
         {
-            return Err(bad(ReasonCode::UnsupportedEntry));
+            return Err(fields.get(i).map_or_else(
+                || bad(ReasonCode::UnsupportedEntry),
+                |path| bad_path(ReasonCode::UnsupportedEntry, path),
+            ));
         }
         let kind = status[0];
         let count = if kind == b'R' || kind == b'C' { 2 } else { 1 };

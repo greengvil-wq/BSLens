@@ -353,10 +353,10 @@ fn mock_paths_report_errors_and_rename() {
         call(Err(GitError::Failure)).unwrap_err().reason,
         ReasonCode::GitFailure
     );
-    assert_eq!(
-        call(Ok(raw("X", b"a"))).unwrap_err().reason,
-        ReasonCode::UnsupportedEntry
-    );
+    let unsupported = call(Ok(raw("X", b"a"))).unwrap_err();
+    assert_eq!(unsupported.reason, ReasonCode::UnsupportedEntry);
+    assert_eq!(unsupported.evidence.rule_id.as_deref(), Some("R1"));
+    assert_eq!(unsupported.evidence.paths, vec!["a"]);
     let mut rename = raw("R100", b"a");
     rename.extend_from_slice(b"b\0");
     let renamed = call(Ok(rename)).unwrap();
