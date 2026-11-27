@@ -391,3 +391,18 @@ fn criss_cross_real_graph_has_two_bases() {
         ReasonCode::MultipleMergeBases
     );
 }
+
+#[test]
+fn object_and_path_failures_are_distinct() {
+    let r = Repo::new();
+    let sha = r.commit("a", "content");
+    let missing = "1".repeat(40);
+    assert_eq!(
+        r.reader().object_type(&missing),
+        Err(GitError::MissingObject)
+    );
+    let broken = ProcessGit::new("/nonexistent/.git", 1024 * 1024);
+    assert_eq!(broken.object_type(&missing), Err(GitError::Failure));
+    assert_eq!(r.reader().blob_oid(&sha, "absent"), Ok(None));
+    assert_eq!(broken.blob_oid(&sha, "absent"), Err(GitError::Failure));
+}

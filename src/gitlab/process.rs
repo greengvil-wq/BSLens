@@ -37,7 +37,7 @@ impl ProcessGit {
             max_output_bytes,
         }
     }
-    fn run<I, S>(&self, args: I) -> GitResult<Vec<u8>>
+    fn run_status<I, S>(&self, args: I) -> GitResult<(Vec<u8>, Option<i32>)>
     where
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
@@ -80,10 +80,18 @@ impl ProcessGit {
                 GitError::LimitExceeded
             });
         }
-        if !child.wait().map_err(|_| GitError::Failure)?.success() {
-            return Err(GitError::Failure);
+        let status = child.wait().map_err(|_| GitError::Failure)?;
+        Ok((output, status.code()))
+    }
+    fn run<I, S>(&self, args: I) -> GitResult<Vec<u8>>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        match self.run_status(args)? {
+            (output, Some(0)) => Ok(output),
+            _ => Err(GitError::Failure),
         }
-        Ok(output)
     }
     fn lines(&self, args: &[&str]) -> GitResult<Vec<String>> {
         let out = self.run(args)?;
@@ -103,12 +111,14 @@ impl GitReader for ProcessGit {
         }
     }
     fn object_type(&self, oid: &str) -> GitResult<String> {
-        // A full OID cannot be interpreted as an option.
-        let args = ["cat-file", "-t", oid];
-        match self.lines(&args) {
-            Ok(v) if v.len() == 1 => Ok(v[0].clone()),
-            Err(GitError::Failure) => Err(GitError::MissingObject),
-            Err(e) => Err(e),
+        // Git 2.53.0: cat-file -e exits 1 for a missing OID, 128 for an invalid git-dir.
+        match self.run_status(["cat-file", "-e", oid])? {
+            (_, Some(0)) => {}
+            (_, Some(1)) => return Err(GitError::MissingObject),
+            _ => return Err(GitError::Failure),
+        }
+        match self.lines(&["cat-file", "-t", oid])?.as_slice() {
+            [kind] => Ok(kind.clone()),
             _ => Err(GitError::Failure),
         }
     }
@@ -144,14 +154,26 @@ impl GitReader for ProcessGit {
         self.run(["ls-tree", "-r", "-z", tree, "--", root])
     }
     fn blob_oid(&self, tree: &str, path: &str) -> GitResult<Option<String>> {
-        let spec = format!("{tree}:{path}");
-        let out = self.lines(&["rev-parse", "--verify", &spec]);
-        match out {
-            Ok(v) if v.len() == 1 => Ok(Some(v[0].clone())),
-            Err(GitError::Failure) => Ok(None),
-            Err(e) => Err(e),
-            _ => Err(GitError::Failure),
+        let literal_path = format!(":(literal){path}");
+        let out = self.run(["ls-tree", "-z", tree, "--", &literal_path])?;
+        if out.is_empty() {
+            return Ok(None);
         }
+        let entry = out.strip_suffix(&[0]).ok_or(GitError::Failure)?;
+        let tab = entry
+            .iter()
+            .position(|&b| b == b'\t')
+            .ok_or(GitError::Failure)?;
+        if &entry[tab + 1..] != path.as_bytes() {
+            return Err(GitError::Failure);
+        }
+        let metadata = std::str::from_utf8(&entry[..tab]).map_err(|_| GitError::Failure)?;
+        let mut fields = metadata.split(' ');
+        let (_mode, kind, oid) = (fields.next(), fields.next(), fields.next());
+        if kind != Some("blob") || fields.next().is_some() {
+            return Err(GitError::Failure);
+        }
+        Ok(Some(oid.ok_or(GitError::Failure)?.to_owned()))
     }
     fn blob(&self, oid: &str) -> GitResult<Vec<u8>> {
         self.run(["cat-file", "blob", oid])
