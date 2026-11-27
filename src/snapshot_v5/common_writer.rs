@@ -7,11 +7,7 @@ pub(crate) fn schema() -> String {
     companion_writer::schema().replace(companion_writer::PROFILE, PROFILE)
 }
 pub(super) fn validate_metadata(db: &rusqlite::Connection) -> Result<()> {
-    companion_writer::validate_metadata_mode(
-        db, true, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false, false, false,
-    )
+    companion_writer::validate_metadata_mode(db, &super::profile_spec::COMMON)
 }
 pub fn build(
     repo: &Path,
@@ -30,44 +26,13 @@ pub fn build(
         output,
         limits,
         git,
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        &[],
-        None,
-        false,
-        false,
-        None,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        None,
+        &super::profile_spec::COMMON,
+        super::companion_writer::Runtime {
+            global_opaque: &[],
+            bin_bytes: None,
+            diagnostics: None,
+            processor_help: None,
+            omit_command_help: super::profile_spec::Feature::Off,
+        },
     )
 }

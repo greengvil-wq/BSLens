@@ -8,11 +8,7 @@ pub(crate) fn schema() -> String {
     chart_writer::schema().replace(chart_writer::PROFILE, PROFILE)
 }
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
-    companion_writer::validate_metadata_mode(
-        db, true, true, true, true, true, true, true, true, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false, false,
-    )
+    companion_writer::validate_metadata_mode(db, &super::profile_spec::REGISTER)
 }
 pub fn build(
     repo: &Path,
@@ -31,45 +27,14 @@ pub fn build(
         output,
         limits,
         git,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        false,
-        &[],
-        None,
-        false,
-        false,
-        None,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        None,
+        &super::profile_spec::REGISTER,
+        super::companion_writer::Runtime {
+            global_opaque: &[],
+            bin_bytes: None,
+            diagnostics: None,
+            processor_help: None,
+            omit_command_help: super::profile_spec::Feature::Off,
+        },
     )
 }
 pub(crate) fn is_kind(k: Kind) -> bool {

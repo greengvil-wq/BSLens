@@ -9,11 +9,7 @@ pub(crate) fn schema() -> String {
     sidecar_writer::schema().replace(sidecar_writer::PROFILE, PROFILE) + "\nCREATE TABLE method_branches (method_id INTEGER PRIMARY KEY REFERENCES methods(method_id), branch_path TEXT NOT NULL CHECK(length(CAST(branch_path AS BLOB)) <= 4096)) STRICT;"
 }
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
-    companion_writer::validate_metadata_mode(
-        db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false,
-    )?;
+    companion_writer::validate_metadata_mode(db, &super::profile_spec::CONDITIONAL)?;
     sidecar_writer::validate_summary(db)?;
     let complete: bool = db.query_row(
         "SELECT (SELECT count(*) FROM method_branches)=(SELECT count(*) FROM methods)",
@@ -45,44 +41,13 @@ pub fn build(
         output,
         limits,
         git,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        globals,
-        Some(bin_bytes),
-        true,
-        true,
-        Some(diagnostics_bytes),
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        None,
+        &super::profile_spec::CONDITIONAL,
+        super::companion_writer::Runtime {
+            global_opaque: globals,
+            bin_bytes: Some(bin_bytes),
+            diagnostics: Some(diagnostics_bytes),
+            processor_help: None,
+            omit_command_help: super::profile_spec::Feature::Off,
+        },
     )
 }

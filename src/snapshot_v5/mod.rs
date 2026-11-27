@@ -8,6 +8,7 @@ pub mod ingest_writer;
 pub mod inline_writer;
 pub mod journal_writer;
 pub mod leaf_writer;
+mod profile_spec;
 mod publish;
 pub mod root_writer;
 pub mod service_writer;
