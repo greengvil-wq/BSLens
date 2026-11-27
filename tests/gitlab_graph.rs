@@ -312,8 +312,22 @@ fn mock_paths_report_errors_and_rename() {
     let policy = VendorPolicy::default();
     let limits = Limits::default();
     let call = |diff| changed_paths(&input, &policy, &limits, &PathMock { diff });
+    let header = |status: &str| {
+        format!(
+            ":100644 100644 {} {} {status}\0",
+            "a".repeat(40),
+            "b".repeat(40)
+        )
+        .into_bytes()
+    };
+    let raw = |status: &str, path: &[u8]| {
+        let mut v = header(status);
+        v.extend_from_slice(path);
+        v.push(0);
+        v
+    };
     assert_eq!(
-        call(Ok(b"A\0\xff\0".to_vec())).unwrap_err().reason,
+        call(Ok(raw("A", b"\xff"))).unwrap_err().reason,
         ReasonCode::NonUtf8Path
     );
     assert_eq!(
@@ -321,10 +335,12 @@ fn mock_paths_report_errors_and_rename() {
         ReasonCode::GitFailure
     );
     assert_eq!(
-        call(Ok(b"T\0a\0".to_vec())).unwrap_err().reason,
+        call(Ok(raw("X", b"a"))).unwrap_err().reason,
         ReasonCode::UnsupportedEntry
     );
-    let renamed = call(Ok(b"R100\0a\0b\0".to_vec())).unwrap();
+    let mut rename = raw("R100", b"a");
+    rename.extend_from_slice(b"b\0");
+    let renamed = call(Ok(rename)).unwrap();
     assert_eq!(renamed.paths[0].change, Change::Deleted);
     assert_eq!(renamed.paths[1].change, Change::Added);
 }
@@ -405,4 +421,49 @@ fn object_and_path_failures_are_distinct() {
     assert_eq!(broken.object_type(&missing), Err(GitError::Failure));
     assert_eq!(r.reader().blob_oid(&sha, "absent"), Ok(None));
     assert_eq!(broken.blob_oid(&sha, "absent"), Err(GitError::Failure));
+}
+
+#[test]
+fn diff_covers_paths_outside_scope() {
+    use bslens_core::gitlab::{
+        paths::changed_paths,
+        types::{Change, Limits, VendorPolicy},
+    };
+    let r = Repo::new();
+    std::fs::create_dir_all(r.0.join("cfg")).unwrap();
+    std::fs::create_dir_all(r.0.join("other")).unwrap();
+    std::fs::write(r.0.join("cfg/a"), "a").unwrap();
+    let base = r.commit("other/a", "old");
+    let head = r.commit("other/a", "new");
+    let policy = VendorPolicy {
+        config_root: "cfg".into(),
+        ..VendorPolicy::default()
+    };
+    let result = changed_paths(
+        &input(&base, &base, &head, &base),
+        &policy,
+        &Limits::default(),
+        &r.reader(),
+    )
+    .unwrap();
+    assert_eq!(result.scope_count, 1);
+    assert_eq!(
+        (result.paths[0].path.as_str(), result.paths[0].change),
+        ("other/a", Change::Modified)
+    );
+    std::os::unix::fs::symlink("a", r.0.join("other/link")).unwrap();
+    r.git(&["add", "."]);
+    r.git(&["commit", "-qm", "link"]);
+    let link = r.git(&["rev-parse", "HEAD"]);
+    assert_eq!(
+        changed_paths(
+            &input(&head, &head, &link, &head),
+            &policy,
+            &Limits::default(),
+            &r.reader()
+        )
+        .unwrap_err()
+        .reason,
+        ReasonCode::UnsupportedEntry
+    );
 }

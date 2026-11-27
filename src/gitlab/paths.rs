@@ -36,13 +36,6 @@ fn tree(bytes: &[u8]) -> Result<BTreeMap<Vec<u8>, Vec<u8>>, Finding> {
 fn supported(mode: &[u8]) -> bool {
     mode == b"100644" || mode == b"100755"
 }
-fn in_root(path: &[u8], root: &str) -> bool {
-    root == "."
-        || path == root.as_bytes()
-        || path
-            .strip_prefix(root.as_bytes())
-            .is_some_and(|p| p.starts_with(b"/"))
-}
 pub fn changed_paths(
     input: &LocalInput,
     policy: &VendorPolicy,
@@ -59,8 +52,8 @@ pub fn changed_paths(
     {
         return Err(bad(ReasonCode::GitFailure));
     }
-    let before_bytes = git.tree(&input.base, ".").map_err(git_finding)?;
-    let after_bytes = git.tree(&input.head, ".").map_err(git_finding)?;
+    let before_bytes = git.tree(&input.base, root).map_err(git_finding)?;
+    let after_bytes = git.tree(&input.head, root).map_err(git_finding)?;
     if before_bytes.len() > limits.max_output_bytes || after_bytes.len() > limits.max_output_bytes {
         return Err(bad(ReasonCode::LimitExceeded));
     }
@@ -68,13 +61,11 @@ pub fn changed_paths(
     let after = tree(&after_bytes)?;
     let mut scope = BTreeSet::new();
     for (path, mode) in before.iter().chain(after.iter()) {
-        if in_root(path, root) {
-            if !supported(mode) {
-                return Err(bad(ReasonCode::UnsupportedEntry));
-            }
-            std::str::from_utf8(path).map_err(|_| bad(ReasonCode::NonUtf8Path))?;
-            scope.insert(path.clone());
+        if !supported(mode) {
+            return Err(bad(ReasonCode::UnsupportedEntry));
         }
+        std::str::from_utf8(path).map_err(|_| bad(ReasonCode::NonUtf8Path))?;
+        scope.insert(path.clone());
     }
     let output = git.diff(&input.base, &input.head).map_err(git_finding)?;
     if output.len() > limits.max_output_bytes {
@@ -84,15 +75,27 @@ pub fn changed_paths(
     let mut i = 0;
     let mut changed = BTreeMap::new();
     while i < fields.len() {
-        let status = fields[i];
+        let header = fields[i];
         i += 1;
+        let metadata = header
+            .strip_prefix(b":")
+            .ok_or_else(|| bad(ReasonCode::GitFailure))?;
+        let parts: Vec<_> = metadata.split(|b| *b == b' ').collect();
+        if parts.len() != 5
+            || parts[2].len() != input.base.len()
+            || parts[3].len() != input.head.len()
+        {
+            return Err(bad(ReasonCode::GitFailure));
+        }
+        let status = parts[4];
         if !(matches!(status, b"A" | b"M" | b"D" | b"T")
             || ((status.starts_with(b"R") || status.starts_with(b"C"))
+                && status.len() > 1
                 && status[1..].iter().all(u8::is_ascii_digit)))
         {
             return Err(bad(ReasonCode::UnsupportedEntry));
         }
-        let kind = *status.first().ok_or_else(|| bad(ReasonCode::GitFailure))?;
+        let kind = status[0];
         let count = if kind == b'R' || kind == b'C' { 2 } else { 1 };
         if i + count > fields.len() {
             return Err(bad(ReasonCode::GitFailure));
@@ -100,17 +103,15 @@ pub fn changed_paths(
         for n in 0..count {
             let path = fields[i + n];
             std::str::from_utf8(path).map_err(|_| bad(ReasonCode::NonUtf8Path))?;
-            if before
-                .get(path)
-                .into_iter()
-                .chain(after.get(path))
-                .any(|m| !supported(m))
+            if [parts[0], parts[1]]
+                .iter()
+                .any(|m| *m != b"000000" && !supported(m))
             {
                 return Err(bad(ReasonCode::UnsupportedEntry));
             }
             let change = match (kind, n) {
                 (b'A', _) => Change::Added,
-                (b'M', _) => Change::Modified,
+                (b'M' | b'T', _) => Change::Modified,
                 (b'D', _) => Change::Deleted,
                 (b'R' | b'C', 0) => Change::Deleted,
                 (b'R' | b'C', 1) => Change::Added,
