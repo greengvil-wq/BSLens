@@ -75,7 +75,6 @@ pub fn build(
             bin_bytes: Some(bin_bytes),
             diagnostics: Some(diagnostics_bytes),
             processor_help: None,
-            omit_command_help: super::profile_spec::Feature::Off,
         },
     )
 }

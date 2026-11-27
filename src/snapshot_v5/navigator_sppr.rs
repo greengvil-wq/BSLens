@@ -394,7 +394,7 @@ pub fn build(
     owners: &[String],
 ) -> Result<BuiltSnapshot> {
     let owners = parse_owners(&serde_json::to_string(owners)?)?;
-    navigator_owners_writer::build_for(
+    navigator_owners_writer::build_with(&navigator_owners_writer::BuildOptions {
         repo,
         commit,
         tree,
@@ -405,6 +405,7 @@ pub fn build(
         globals,
         bin_bytes,
         diagnostics_bytes,
-        Some(&owners),
-    )
+        profile: &super::profile_spec::NAVIGATOR_SPPR,
+        processor_help_owners: Some(&owners),
+    })
 }

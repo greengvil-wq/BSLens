@@ -24,7 +24,32 @@ pub(super) struct Runtime<'a> {
     pub(super) bin_bytes: Option<u64>,
     pub(super) diagnostics: Option<u64>,
     pub(super) processor_help: Option<&'a [String]>,
-    pub(super) omit_command_help: super::profile_spec::Feature,
+}
+
+fn validate_omit_command_help(
+    profile: &super::profile_spec::ProfileSpec,
+    stored: super::profile_spec::Feature,
+) -> Result<()> {
+    if profile.omit_command_help != stored {
+        return Err(Error::Contract("omit_command_help"));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod policy_tests {
+    #[test]
+    fn rejects_mismatched_omit_command_help() {
+        use super::super::profile_spec::{Feature, NAVIGATOR_OWNERS, NAVIGATOR_SPPR};
+        assert!(matches!(
+            super::validate_omit_command_help(&NAVIGATOR_OWNERS, Feature::On),
+            Err(super::Error::Contract("omit_command_help"))
+        ));
+        assert!(matches!(
+            super::validate_omit_command_help(&NAVIGATOR_SPPR, Feature::Off),
+            Err(super::Error::Contract("omit_command_help"))
+        ));
+    }
 }
 
 /// Нормализованные эффективные бюджеты нового producer; legacy-профиль не меняется.
@@ -68,7 +93,7 @@ fn parameters(
     let source_anomalies = profile.features.source_anomalies.enabled();
     let command_owners = profile.features.command_owners.enabled();
     let large_templates = profile.features.large_templates.enabled();
-    let omit_command_help = runtime.omit_command_help.enabled();
+    let omit_command_help = profile.omit_command_help.enabled();
     let Runtime {
         global_opaque,
         bin_bytes,
@@ -320,6 +345,16 @@ pub(super) fn validate_metadata_mode(
     } else {
         None
     };
+    if let Some(policy) = &bin_policy {
+        validate_omit_command_help(
+            profile,
+            if policy.omit_command_help {
+                super::profile_spec::Feature::On
+            } else {
+                super::profile_spec::Feature::Off
+            },
+        )?;
+    }
     if p != parameters(
         stream,
         git,
@@ -335,11 +370,6 @@ pub(super) fn validate_metadata_mode(
             processor_help: bin_policy
                 .as_ref()
                 .and_then(|b| b.processor_help.as_deref()),
-            omit_command_help: if bin_policy.as_ref().is_some_and(|b| b.omit_command_help) {
-                super::profile_spec::Feature::On
-            } else {
-                super::profile_spec::Feature::Off
-            },
         },
     )? || raw != p.to_string()
         || stored != limits.json().to_string()
@@ -421,7 +451,6 @@ pub fn build(
             bin_bytes: None,
             diagnostics: None,
             processor_help: None,
-            omit_command_help: super::profile_spec::Feature::Off,
         },
     )
 }
@@ -860,7 +889,7 @@ pub(super) fn build_mode(
                 r.get(0)
             })?;
         tx.execute("INSERT INTO metadata VALUES (1,5,?1,'bslens-v5-pending',?2,NULL,?3,?4,?5,?6,?7,'2.21',?8,?9,?10,?11,?12,?13,'not_analyzed')",
-            params![if processor_help.is_some() {super::navigator_sppr::PROFILE}else if command_owners {super::navigator_owners_writer::PROFILE}else if source_anomalies && lexical_tail {super::navigator_agreement_writer::PROFILE}else if source_anomalies {super::source_anomalies_writer::PROFILE}else if lexical_tail {super::lexical_tail_writer::PROFILE}else if long_headers {super::long_headers_writer::PROFILE}else if source_limits {super::source_limits_writer::PROFILE}else if header_forms {super::header_forms_writer::PROFILE}else if method_regions {super::method_regions_writer::PROFILE}else if mobile_vars {super::mobile_vars_writer::PROFILE}else if async_casing {super::async_casing_writer::PROFILE}else if dates_members {super::dates_members_writer::PROFILE}else if annotated_vars {super::annotated_vars_writer::PROFILE}else if refined {super::refined_writer::PROFILE}else if wrapped {super::wrapped_writer::PROFILE}else if literals {super::literal_writer::PROFILE}else if strings {super::string_writer::PROFILE}else if conditional {super::conditional_writer::PROFILE}else if headers {super::parameter_writer::PROFILE}else if context {super::context_writer::PROFILE}else if root_sidecars {super::sidecar_writer::PROFILE}else if optional_form {super::optional_form_writer::PROFILE}else if diagnostics.is_some() {super::diagnostics_writer::PROFILE}else if configuration {super::corpus_config_writer::PROFILE}else if root_help {super::corpus_help_writer::PROFILE}else if bin_bytes.is_some() {super::corpus_bin_writer::PROFILE}else if corpus {super::corpus_writer::PROFILE}else if workflows {super::workflow_writer::PROFILE}else if reports {super::report_writer::PROFILE}else if registers {super::register_writer::PROFILE}else if charts {super::chart_writer::PROFILE}else if services {super::service_writer::PROFILE}else if journals {super::journal_writer::PROFILE}else if leaves {super::leaf_writer::PROFILE}else if shared {super::shared_writer::PROFILE}else if roots {super::root_writer::PROFILE}else if common {super::common_writer::PROFILE}else{PROFILE},date,source_id,receipt.manifest.commit(),receipt.manifest.tree(),contract::CORE,contract::ADAPTER,
+            params![profile.name,date,source_id,receipt.manifest.commit(),receipt.manifest.tree(),contract::CORE,contract::ADAPTER,
                 profile.lexical.value(),contract::SCOPE,parameters.to_string(),input_manifest.to_string(),
                 coverage.to_string(),limits.json().to_string()])?;
         contract::compatible_scope(&tx)?;
