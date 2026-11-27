@@ -438,6 +438,12 @@ fn object_and_path_failures_are_distinct() {
     );
     let broken = ProcessGit::new("/nonexistent/.git", 1024 * 1024);
     assert_eq!(broken.object_type(&missing), Err(GitError::Failure));
+    assert_eq!(
+        check_graph(&input(&missing, &missing, &missing, &missing), &broken)
+            .unwrap_err()
+            .reason,
+        ReasonCode::GitFailure
+    );
     assert_eq!(r.reader().blob_oid(&sha, "absent"), Ok(None));
     assert_eq!(broken.blob_oid(&sha, "absent"), Err(GitError::Failure));
 }
