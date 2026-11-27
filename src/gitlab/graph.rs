@@ -18,7 +18,11 @@ pub(crate) fn git_finding(error: GitError) -> Finding {
 pub fn check_graph(input: &LocalInput, git: &dyn GitReader) -> Result<GraphOk, Finding> {
     let length = git.object_format().map_err(git_finding)?;
     for oid in [&input.base, &input.start, &input.head, &input.target] {
-        if oid.len() != length || !oid.bytes().all(|b| b.is_ascii_hexdigit()) {
+        if oid.len() != length
+            || !oid
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        {
             return Err(Finding::new(ReasonCode::MissingObject));
         }
         if git.object_type(oid).map_err(git_finding)? != "commit" {
@@ -36,7 +40,7 @@ pub fn check_graph(input: &LocalInput, git: &dyn GitReader) -> Result<GraphOk, F
         if bases.len() > 1 {
             return Err(Finding::new(ReasonCode::MultipleMergeBases));
         }
-        if bases.len() != 1 || !bases[0].eq_ignore_ascii_case(&input.base) {
+        if bases.len() != 1 || bases[0] != input.base {
             return Err(Finding::new(mismatch));
         }
     }

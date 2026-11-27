@@ -83,6 +83,15 @@ fn graph_real_repository() {
             .reason,
         ReasonCode::MissingObject
     );
+    assert_eq!(
+        check_graph(
+            &input(&base.to_ascii_uppercase(), &start, &head, &start),
+            &git
+        )
+        .unwrap_err()
+        .reason,
+        ReasonCode::MissingObject
+    );
     let tree = r.git(&["rev-parse", "HEAD^{tree}"]);
     assert_eq!(
         check_graph(&input(&tree, &start, &head, &start), &git)
