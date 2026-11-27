@@ -467,3 +467,22 @@ fn diff_covers_paths_outside_scope() {
         ReasonCode::UnsupportedEntry
     );
 }
+
+#[test]
+fn unrelated_history_has_no_merge_base() {
+    let r = Repo::new();
+    let base = r.commit("a", "base");
+    r.git(&["checkout", "-q", "--orphan", "unrelated"]);
+    r.git(&["rm", "-q", "-rf", "."]);
+    let head = r.commit("b", "unrelated");
+    assert_eq!(
+        r.reader().merge_bases(&base, &head).unwrap(),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        check_graph(&input(&base, &base, &head, &base), &r.reader())
+            .unwrap_err()
+            .reason,
+        ReasonCode::MergeBaseMismatch
+    );
+}

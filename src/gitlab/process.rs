@@ -133,7 +133,14 @@ impl GitReader for ProcessGit {
         }
     }
     fn merge_bases(&self, a: &str, b: &str) -> GitResult<Vec<String>> {
-        self.lines(&["merge-base", "--all", a, b])
+        match self.run_status(["merge-base", "--all", a, b])? {
+            (output, Some(0)) => {
+                let text = std::str::from_utf8(&output).map_err(|_| GitError::Failure)?;
+                Ok(text.lines().map(str::to_owned).collect())
+            }
+            (output, Some(1)) if output.is_empty() => Ok(Vec::new()),
+            _ => Err(GitError::Failure),
+        }
     }
     fn rev_list(&self, a: &str, b: &str) -> GitResult<Vec<String>> {
         self.lines(&["rev-list", &format!("{a}..{b}")])
