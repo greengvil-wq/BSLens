@@ -14,9 +14,12 @@ pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
 
 pub(super) fn validate_metadata_for(db: &Connection, sppr: bool) -> Result<()> {
     companion_writer::validate_metadata_mode(
-        db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true, sppr,
+        db,
+        if sppr {
+            &super::profile_spec::NAVIGATOR_SPPR
+        } else {
+            &super::profile_spec::NAVIGATOR_OWNERS
+        },
     )?;
     sidecar_writer::validate_summary(db)?;
     let (count, bad): (u64, bool) = db.query_row(
@@ -57,7 +60,7 @@ pub fn build(
     bin_bytes: u64,
     diagnostics_bytes: u64,
 ) -> Result<BuiltSnapshot> {
-    build_for(
+    build_with(&BuildOptions {
         repo,
         commit,
         tree,
@@ -68,69 +71,72 @@ pub fn build(
         globals,
         bin_bytes,
         diagnostics_bytes,
-        None,
+        profile: &super::profile_spec::NAVIGATOR_OWNERS,
+        processor_help_owners: None,
+    })
+}
+
+pub(super) struct BuildOptions<'a> {
+    pub(super) repo: &'a Path,
+    pub(super) commit: &'a str,
+    pub(super) tree: &'a str,
+    pub(super) source_id: &'a str,
+    pub(super) output: &'a Path,
+    pub(super) limits: streaming_facts::Limits,
+    pub(super) git: ingest::Limits,
+    pub(super) globals: &'a [String],
+    pub(super) bin_bytes: u64,
+    pub(super) diagnostics_bytes: u64,
+    pub(super) profile: &'static super::profile_spec::ProfileSpec,
+    pub(super) processor_help_owners: Option<&'a [String]>,
+}
+
+fn validate_processor_help(
+    profile: &super::profile_spec::ProfileSpec,
+    owners: Option<&[String]>,
+) -> Result<()> {
+    if (profile.processor_help == super::profile_spec::ProcessorHelpPolicy::Sppr)
+        != owners.is_some()
+    {
+        return Err(super::Error::Contract("profile_processor_help"));
+    }
+    Ok(())
+}
+
+pub(super) fn build_with(options: &BuildOptions<'_>) -> Result<BuiltSnapshot> {
+    validate_processor_help(options.profile, options.processor_help_owners)?;
+    companion_writer::build_mode(
+        options.repo,
+        options.commit,
+        options.tree,
+        options.source_id,
+        options.output,
+        options.limits,
+        options.git,
+        options.profile,
+        super::companion_writer::Runtime {
+            global_opaque: options.globals,
+            bin_bytes: Some(options.bin_bytes),
+            diagnostics: Some(options.diagnostics_bytes),
+            processor_help: options.processor_help_owners,
+        },
     )
 }
 
-pub(super) fn build_for(
-    repo: &Path,
-    commit: &str,
-    tree: &str,
-    source_id: &str,
-    output: &Path,
-    limits: streaming_facts::Limits,
-    git: ingest::Limits,
-    globals: &[String],
-    bin_bytes: u64,
-    diagnostics_bytes: u64,
-    processor_help: Option<&[String]>,
-) -> Result<BuiltSnapshot> {
-    companion_writer::build_mode(
-        repo,
-        commit,
-        tree,
-        source_id,
-        output,
-        limits,
-        git,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        globals,
-        Some(bin_bytes),
-        true,
-        true,
-        Some(diagnostics_bytes),
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        processor_help.is_some(),
-        processor_help.is_some(),
-        processor_help,
-    )
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_mismatched_profile_processor_help() {
+        let owners = vec!["owner".to_owned()];
+        assert!(matches!(
+            validate_processor_help(&super::super::profile_spec::NAVIGATOR_SPPR, None),
+            Err(super::super::Error::Contract("profile_processor_help"))
+        ));
+        assert!(matches!(
+            validate_processor_help(&super::super::profile_spec::NAVIGATOR_OWNERS, Some(&owners)),
+            Err(super::super::Error::Contract("profile_processor_help"))
+        ));
+    }
 }

@@ -9,11 +9,7 @@ pub(crate) fn schema() -> String {
     sidecar_writer::schema().replace(sidecar_writer::PROFILE, PROFILE)
 }
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
-    companion_writer::validate_metadata_mode(
-        db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false,
-    )?;
+    companion_writer::validate_metadata_mode(db, &super::profile_spec::CONTEXT)?;
     sidecar_writer::validate_summary(db)
 }
 pub fn build(
@@ -36,44 +32,12 @@ pub fn build(
         output,
         limits,
         git,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        globals,
-        Some(bin_bytes),
-        true,
-        true,
-        Some(diagnostics_bytes),
-        true,
-        true,
-        true,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        None,
+        &super::profile_spec::CONTEXT,
+        super::companion_writer::Runtime {
+            global_opaque: globals,
+            bin_bytes: Some(bin_bytes),
+            diagnostics: Some(diagnostics_bytes),
+            processor_help: None,
+        },
     )
 }

@@ -21,11 +21,7 @@ CREATE TABLE bsl_source_anomalies (
     schema
 }
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
-    companion_writer::validate_metadata_mode(
-        db, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, true, true, true, true, true, true, true, true, true, true, true, true, true,
-        true, true, false, false, true, false, false,
-    )?;
+    companion_writer::validate_metadata_mode(db, &super::profile_spec::SOURCE_ANOMALIES)?;
     sidecar_writer::validate_summary(db)?;
     let (count, bad): (u64, bool) = db.query_row(
         "SELECT (SELECT count(*) FROM bsl_source_anomalies), EXISTS(SELECT 1 FROM bsl_source_anomalies a JOIN modules m ON m.path=a.module_path JOIN source_lines l ON l.path=a.module_path AND l.line_number=a.physical_line WHERE m.parse_status<>'accepted' OR a.byte_start<l.byte_start OR a.byte_end>l.byte_end)",
@@ -73,44 +69,12 @@ pub fn build(
         output,
         limits,
         git,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        globals,
-        Some(bin_bytes),
-        true,
-        true,
-        Some(diagnostics_bytes),
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        false,
-        false,
-        true,
-        false,
-        false,
-        false,
-        None,
+        &super::profile_spec::SOURCE_ANOMALIES,
+        super::companion_writer::Runtime {
+            global_opaque: globals,
+            bin_bytes: Some(bin_bytes),
+            diagnostics: Some(diagnostics_bytes),
+            processor_help: None,
+        },
     )
 }

@@ -18,50 +18,90 @@ pub(crate) fn schema() -> String {
     )
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct Runtime<'a> {
+    pub(super) global_opaque: &'a [String],
+    pub(super) bin_bytes: Option<u64>,
+    pub(super) diagnostics: Option<u64>,
+    pub(super) processor_help: Option<&'a [String]>,
+}
+
+fn validate_omit_command_help(
+    profile: &super::profile_spec::ProfileSpec,
+    stored: super::profile_spec::Feature,
+) -> Result<()> {
+    if profile.omit_command_help != stored {
+        return Err(Error::Contract("omit_command_help"));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod policy_tests {
+    #[test]
+    fn rejects_mismatched_omit_command_help() {
+        use super::super::profile_spec::{Feature, NAVIGATOR_OWNERS, NAVIGATOR_SPPR};
+        assert!(matches!(
+            super::validate_omit_command_help(&NAVIGATOR_OWNERS, Feature::On),
+            Err(super::Error::Contract("omit_command_help"))
+        ));
+        assert!(matches!(
+            super::validate_omit_command_help(&NAVIGATOR_SPPR, Feature::Off),
+            Err(super::Error::Contract("omit_command_help"))
+        ));
+    }
+}
+
 /// Нормализованные эффективные бюджеты нового producer; legacy-профиль не меняется.
 fn parameters(
     stream: streaming_facts::Limits,
     git: ingest::Limits,
-    common: bool,
-    roots: bool,
-    shared: bool,
-    leaves: bool,
-    journals: bool,
-    services: bool,
-    charts: bool,
-    registers: bool,
-    reports: bool,
-    workflows: bool,
-    corpus: bool,
-    global_opaque: &[String],
-    bin_bytes: Option<u64>,
-    root_help: bool,
-    configuration: bool,
-    diagnostics: Option<u64>,
-    optional_form: bool,
-    root_sidecars: bool,
-    context: bool,
-    headers: bool,
-    conditional: bool,
-    strings: bool,
-    literals: bool,
-    wrapped: bool,
-    refined: bool,
-    annotated_vars: bool,
-    dates_members: bool,
-    async_casing: bool,
-    mobile_vars: bool,
-    method_regions: bool,
-    header_forms: bool,
-    source_limits: bool,
-    long_headers: bool,
-    lexical_tail: bool,
-    source_anomalies: bool,
-    command_owners: bool,
-    large_templates: bool,
-    omit_command_help: bool,
-    processor_help: Option<&[String]>,
+    profile: &super::profile_spec::ProfileSpec,
+    runtime: Runtime<'_>,
 ) -> Result<Value> {
+    let common = profile.features.common.enabled();
+    let roots = profile.features.roots.enabled();
+    let shared = profile.features.shared.enabled();
+    let leaves = profile.features.leaves.enabled();
+    let journals = profile.features.journals.enabled();
+    let services = profile.features.services.enabled();
+    let charts = profile.features.charts.enabled();
+    let registers = profile.features.registers.enabled();
+    let reports = profile.features.reports.enabled();
+    let workflows = profile.features.workflows.enabled();
+    let corpus = profile.features.corpus.enabled();
+    let root_help = profile.features.root_help.enabled();
+    let configuration = profile.features.configuration.enabled();
+    let optional_form = profile.features.optional_form.enabled();
+    let root_sidecars = profile.features.root_sidecars.enabled();
+    let context = profile.features.context.enabled();
+    let headers = profile.features.headers.enabled();
+    let conditional = profile.features.conditional.enabled();
+    let strings = profile.features.strings.enabled();
+    let literals = profile.features.literals.enabled();
+    let wrapped = profile.features.wrapped.enabled();
+    let refined = profile.features.refined.enabled();
+    let annotated_vars = profile.features.annotated_vars.enabled();
+    let dates_members = profile.features.dates_members.enabled();
+    let async_casing = profile.features.async_casing.enabled();
+    let mobile_vars = profile.features.mobile_vars.enabled();
+    let method_regions = profile.features.method_regions.enabled();
+    let header_forms = profile.features.header_forms.enabled();
+    let source_limits = profile.features.source_limits.enabled();
+    let long_headers = profile.features.long_headers.enabled();
+    let lexical_tail = profile.features.lexical_tail.enabled();
+    let source_anomalies = profile.features.source_anomalies.enabled();
+    let command_owners = profile.features.command_owners.enabled();
+    let large_templates = profile.features.large_templates.enabled();
+    let omit_command_help = profile.omit_command_help.enabled();
+    let Runtime {
+        global_opaque,
+        bin_bytes,
+        diagnostics,
+        processor_help,
+        ..
+    } = runtime;
+
     if git.deadline != Duration::from_millis(git.deadline.as_millis() as u64) {
         return Err(Error::Contract("ingest_deadline_milliseconds"));
     }
@@ -93,23 +133,19 @@ fn parameters(
         value["opaque_bin"] = json!({"bytes":bytes,"grammar":"owned-template-xdto-global-bin-v1"});
     }
     if context {
-        value["lexical_guard"] = json!(super::context_writer::LEXICAL);
+        value["lexical_guard"] = json!(profile.lexical.value());
         value["context_annotations"] = json!({"allowlist":["НаКлиенте","НаСервере","НаСервереБезКонтекста"],"adjacency":"next-physical-line","case":"exact","method_range":"declaration-through-end"});
     }
     if headers {
-        value["lexical_guard"] = json!(super::parameter_writer::LEXICAL);
         value["parameter_headers"] = json!({"grammar":"identifier-val-no-default-v1","max_parameters":64,"max_header_bytes":8192,"max_tokens":200,"max_token_bytes":128,"multiline":false,"defaults":false});
     }
     if conditional {
-        value["lexical_guard"] = json!(super::conditional_writer::LEXICAL);
         value["conditional_guard"] = json!({"grammar":"ru-physical-boolean-v1","atoms":["Сервер","ТолстыйКлиентОбычноеПриложение","ВнешнееСоединение"],"case":"exact","max_blocks":4096,"max_depth":8,"max_arms":64,"expression_bytes":4096,"expression_tokens":256,"expression_depth":16,"evaluation":"none","branch_evidence":"physical-declaration-path-v1","method_name_budget":"legacy_source_bound","header_bytes_exclude_method_name":true});
     }
     if strings {
-        value["lexical_guard"] = json!(super::string_writer::LEXICAL);
         value["string_guard"] = json!({"grammar":"pipe-continuation-opaque-v1","indent":"space-tab","comments":"comment-only-lines","quotes":"doubled","evaluation":"none","bounds":"existing-module-bytes-lines-tokens","multiline_headers":false,"defaults":false});
     }
     if literals {
-        value["lexical_guard"] = json!(super::literal_writer::LEXICAL);
         value["context_annotations"]["allowlist"] = json!([
             "НаКлиенте",
             "НаСервере",
@@ -122,13 +158,11 @@ fn parameters(
         value["literal_defaults"] = json!({"grammar":"undefined-boolean-signed-decimal-string-v1","decimal_digits":32,"evaluation":"none"});
     }
     if wrapped {
-        value["lexical_guard"] = json!(super::wrapped_writer::LEXICAL);
         value["parameter_headers"]["multiline"] =
             json!("two-physical-lines-with-plain-parameters-only");
         value["wrapped_headers"] = json!({"grammar":"adjacent-after-comma-identifiers-v1","max_physical_lines":2,"defaults":false,"markers":false});
     }
     if refined {
-        value["lexical_guard"] = json!(super::refined_writer::LEXICAL);
         value["conditional_guard"]["atoms"] = json!([
             "Сервер",
             "ТолстыйКлиентОбычноеПриложение",
@@ -144,36 +178,28 @@ fn parameters(
         value["wrapped_headers"] = json!({"grammar":"adjacent-comma-separated-scalar-v2","max_physical_lines":crate::lexical::MAX_REFINED_HEADER_LINES,"comments":false,"directives":false,"evaluation":"none"});
     }
     if annotated_vars {
-        value["lexical_guard"] = json!(super::annotated_vars_writer::LEXICAL);
         value["annotated_module_variables"] = json!({"grammar":"bare-client-or-server-adjacent-ru-module-var-v1","max_names":crate::lexical::MAX_ANNOTATED_VAR_NAMES,"export":"single-name-only","evaluation":"none","facts":"none"});
     }
     if dates_members {
-        value["lexical_guard"] = json!(super::dates_members_writer::LEXICAL);
         value["date_member_grammar"] = json!({"date":"compact-8-12-14-ascii","member":"adjacent-ru-procedure","evaluation":"none"});
     }
     if async_casing {
-        value["lexical_guard"] = json!(super::async_casing_writer::LEXICAL);
         value["async_condition_grammar"] = json!({"header":"single-line-ru-async","context":"bare-client-or-absent","condition":"known-ru-atoms-operators-case-insensitive","evaluation":"none"});
     }
     if mobile_vars {
-        value["lexical_guard"] = json!(super::mobile_vars_writer::LEXICAL);
         value["mobile_variable_grammar"] = json!({"condition":"three-ru-mobile-atoms","variable":"bounded-adjacent-ru-name-list","evaluation":"none","facts":"none"});
     }
     if method_regions {
-        value["lexical_guard"] = json!(super::method_regions_writer::LEXICAL);
         value["method_region_grammar"] =
             json!({"max_method_owned_depth":1,"branch_crossing":false,"facts":"none"});
     }
     if header_forms {
-        value["lexical_guard"] = json!(super::header_forms_writer::LEXICAL);
         value["extended_header_grammar"] = json!({"null":"scalar-only","async_wrapped":true,"token_proven_line_comments":true,"evaluation":"none"});
     }
     if source_limits {
-        value["lexical_guard"] = json!(super::source_limits_writer::LEXICAL);
         value["bounded_source_grammar"] = json!({"module_bytes":4*1024*1024,"client_comment_lines":16,"date":"exact-iso-day-digits-only","evaluation":"none"});
     }
     if long_headers {
-        value["lexical_guard"] = json!(super::long_headers_writer::LEXICAL);
         value["long_ordinary_header"] = json!({
             "max_physical_lines":crate::lexical::MAX_LONG_ORDINARY_HEADER_LINES,
             "formal_identifier_bytes":crate::lexical::MAX_LONG_FORMAL_BYTES,
@@ -181,7 +207,6 @@ fn parameters(
         });
     }
     if lexical_tail {
-        value["lexical_guard"] = json!(super::lexical_tail_writer::LEXICAL);
         value["lexical_tail_grammar"] = json!({
             "member":"adjacent-ru-procedure-one-nonreserved-selector-atomic-id-or-closed-string-in-method",
             "large_token_threshold_bytes":crate::lexical::LEXICAL_TAIL_LARGE_TOKEN_THRESHOLD_BYTES,
@@ -189,11 +214,6 @@ fn parameters(
         });
     }
     if source_anomalies {
-        value["lexical_guard"] = json!(if lexical_tail {
-            super::navigator_agreement_writer::LEXICAL
-        } else {
-            super::source_anomalies_writer::LEXICAL
-        });
         value["source_anomaly_policy"] = json!({"algorithm":"full-mapped-inventory-agreement-v1","max_sites_per_module":1,"coordinates":"raw-lf","compiler_validation":false});
     }
     if large_templates {
@@ -269,51 +289,17 @@ fn parameters(
 
 /// Проверяется reader даже без Git. Сохранённые бюджеты не становятся его политикой.
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
-    validate_metadata_mode(
-        db, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false, false, false,
-    )
+    validate_metadata_mode(db, &super::profile_spec::COMPANION)
 }
 pub(super) fn validate_metadata_mode(
     db: &Connection,
-    common: bool,
-    roots: bool,
-    shared: bool,
-    leaves: bool,
-    journals: bool,
-    services: bool,
-    charts: bool,
-    registers: bool,
-    reports: bool,
-    workflows: bool,
-    corpus: bool,
-    bin_profile: bool,
-    root_help: bool,
-    configuration: bool,
-    diagnostics: bool,
-    optional_form: bool,
-    root_sidecars: bool,
-    context: bool,
-    headers: bool,
-    conditional: bool,
-    strings: bool,
-    literals: bool,
-    wrapped: bool,
-    refined: bool,
-    annotated_vars: bool,
-    dates_members: bool,
-    async_casing: bool,
-    mobile_vars: bool,
-    method_regions: bool,
-    header_forms: bool,
-    source_limits: bool,
-    long_headers: bool,
-    lexical_tail: bool,
-    source_anomalies: bool,
-    command_owners: bool,
-    large_templates: bool,
+    profile: &super::profile_spec::ProfileSpec,
 ) -> Result<()> {
+    let journals = profile.features.journals.enabled();
+    let corpus = profile.features.corpus.enabled();
+    let bin_profile = profile.features.bin_profile.enabled();
+    let diagnostics = profile.features.diagnostics.enabled();
+
     let (raw, stored): (String, String) = db.query_row(
         "SELECT build_parameters,limits_draft FROM metadata WHERE singleton=1",
         [],
@@ -359,54 +345,32 @@ pub(super) fn validate_metadata_mode(
     } else {
         None
     };
+    if let Some(policy) = &bin_policy {
+        validate_omit_command_help(
+            profile,
+            if policy.omit_command_help {
+                super::profile_spec::Feature::On
+            } else {
+                super::profile_spec::Feature::Off
+            },
+        )?;
+    }
     if p != parameters(
         stream,
         git,
-        common,
-        roots,
-        shared,
-        leaves,
-        journals,
-        services,
-        charts,
-        registers,
-        reports,
-        workflows,
-        corpus,
-        &global_opaque,
-        bin_policy.as_ref().map(|b| b.bytes),
-        root_help,
-        configuration,
-        if diagnostics {
-            bin_policy.as_ref().and_then(|p| p.diagnostics)
-        } else {
-            None
+        profile,
+        Runtime {
+            global_opaque: &global_opaque,
+            bin_bytes: bin_policy.as_ref().map(|b| b.bytes),
+            diagnostics: if diagnostics {
+                bin_policy.as_ref().and_then(|p| p.diagnostics)
+            } else {
+                None
+            },
+            processor_help: bin_policy
+                .as_ref()
+                .and_then(|b| b.processor_help.as_deref()),
         },
-        optional_form,
-        root_sidecars,
-        context,
-        headers,
-        conditional,
-        strings,
-        literals,
-        wrapped,
-        refined,
-        annotated_vars,
-        dates_members,
-        async_casing,
-        mobile_vars,
-        method_regions,
-        header_forms,
-        source_limits,
-        long_headers,
-        lexical_tail,
-        source_anomalies,
-        command_owners,
-        large_templates,
-        bin_policy.as_ref().is_some_and(|b| b.omit_command_help),
-        bin_policy
-            .as_ref()
-            .and_then(|b| b.processor_help.as_deref()),
     )? || raw != p.to_string()
         || stored != limits.json().to_string()
     {
@@ -481,45 +445,13 @@ pub fn build(
         output,
         stream,
         git,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        &[],
-        None,
-        false,
-        false,
-        None,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        None,
+        &super::profile_spec::COMPANION,
+        super::companion_writer::Runtime {
+            global_opaque: &[],
+            bin_bytes: None,
+            diagnostics: None,
+            processor_help: None,
+        },
     )
 }
 pub(super) fn build_mode(
@@ -530,92 +462,56 @@ pub(super) fn build_mode(
     output: &Path,
     stream: streaming_facts::Limits,
     git: ingest::Limits,
-    common: bool,
-    roots: bool,
-    shared: bool,
-    leaves: bool,
-    journals: bool,
-    services: bool,
-    charts: bool,
-    registers: bool,
-    reports: bool,
-    workflows: bool,
-    corpus: bool,
-    global_opaque: &[String],
-    bin_bytes: Option<u64>,
-    root_help: bool,
-    configuration: bool,
-    diagnostics: Option<u64>,
-    optional_form: bool,
-    root_sidecars: bool,
-    context: bool,
-    headers: bool,
-    conditional: bool,
-    strings: bool,
-    literals: bool,
-    wrapped: bool,
-    refined: bool,
-    annotated_vars: bool,
-    dates_members: bool,
-    async_casing: bool,
-    mobile_vars: bool,
-    method_regions: bool,
-    header_forms: bool,
-    source_limits: bool,
-    long_headers: bool,
-    lexical_tail: bool,
-    source_anomalies: bool,
-    command_owners: bool,
-    large_templates: bool,
-    omit_command_help: bool,
-    processor_help: Option<&[String]>,
+    profile: &super::profile_spec::ProfileSpec,
+    runtime: Runtime<'_>,
 ) -> Result<BuiltSnapshot> {
+    let common = profile.features.common.enabled();
+    let roots = profile.features.roots.enabled();
+    let shared = profile.features.shared.enabled();
+    let leaves = profile.features.leaves.enabled();
+    let journals = profile.features.journals.enabled();
+    let services = profile.features.services.enabled();
+    let charts = profile.features.charts.enabled();
+    let registers = profile.features.registers.enabled();
+    let reports = profile.features.reports.enabled();
+    let workflows = profile.features.workflows.enabled();
+    let corpus = profile.features.corpus.enabled();
+    let root_help = profile.features.root_help.enabled();
+    let configuration = profile.features.configuration.enabled();
+    let optional_form = profile.features.optional_form.enabled();
+    let root_sidecars = profile.features.root_sidecars.enabled();
+    let context = profile.features.context.enabled();
+    let headers = profile.features.headers.enabled();
+    let conditional = profile.features.conditional.enabled();
+    let strings = profile.features.strings.enabled();
+    let literals = profile.features.literals.enabled();
+    let wrapped = profile.features.wrapped.enabled();
+    let refined = profile.features.refined.enabled();
+    let annotated_vars = profile.features.annotated_vars.enabled();
+    let dates_members = profile.features.dates_members.enabled();
+    let async_casing = profile.features.async_casing.enabled();
+    let mobile_vars = profile.features.mobile_vars.enabled();
+    let method_regions = profile.features.method_regions.enabled();
+    let header_forms = profile.features.header_forms.enabled();
+    let source_limits = profile.features.source_limits.enabled();
+    let long_headers = profile.features.long_headers.enabled();
+    let lexical_tail = profile.features.lexical_tail.enabled();
+    let source_anomalies = profile.features.source_anomalies.enabled();
+    let command_owners = profile.features.command_owners.enabled();
+    let large_templates = profile.features.large_templates.enabled();
+    let omit_command_help = profile.omit_command_help.enabled();
+    let Runtime {
+        global_opaque,
+        bin_bytes,
+        diagnostics,
+        processor_help,
+        ..
+    } = runtime;
+
     if source_id.is_empty() {
         return Err(Error::Contract("source_id"));
     }
-    let parameters = parameters(
-        stream,
-        git,
-        common,
-        roots,
-        shared,
-        leaves,
-        journals,
-        services,
-        charts,
-        registers,
-        reports,
-        workflows,
-        corpus,
-        global_opaque,
-        bin_bytes,
-        root_help,
-        configuration,
-        diagnostics,
-        optional_form,
-        root_sidecars,
-        context,
-        headers,
-        conditional,
-        strings,
-        literals,
-        wrapped,
-        refined,
-        annotated_vars,
-        dates_members,
-        async_casing,
-        mobile_vars,
-        method_regions,
-        header_forms,
-        source_limits,
-        long_headers,
-        lexical_tail,
-        source_anomalies,
-        command_owners,
-        large_templates,
-        omit_command_help,
-        processor_help,
-    )?;
+    let parameters = parameters(stream, git, profile, runtime)?;
     let mut bin_policy = bin_bytes
         .map(|n| {
             super::corpus_bin_writer::Policy::with_template_limit(n, global_opaque, large_templates)
@@ -993,8 +889,8 @@ pub(super) fn build_mode(
                 r.get(0)
             })?;
         tx.execute("INSERT INTO metadata VALUES (1,5,?1,'bslens-v5-pending',?2,NULL,?3,?4,?5,?6,?7,'2.21',?8,?9,?10,?11,?12,?13,'not_analyzed')",
-            params![if processor_help.is_some() {super::navigator_sppr::PROFILE}else if command_owners {super::navigator_owners_writer::PROFILE}else if source_anomalies && lexical_tail {super::navigator_agreement_writer::PROFILE}else if source_anomalies {super::source_anomalies_writer::PROFILE}else if lexical_tail {super::lexical_tail_writer::PROFILE}else if long_headers {super::long_headers_writer::PROFILE}else if source_limits {super::source_limits_writer::PROFILE}else if header_forms {super::header_forms_writer::PROFILE}else if method_regions {super::method_regions_writer::PROFILE}else if mobile_vars {super::mobile_vars_writer::PROFILE}else if async_casing {super::async_casing_writer::PROFILE}else if dates_members {super::dates_members_writer::PROFILE}else if annotated_vars {super::annotated_vars_writer::PROFILE}else if refined {super::refined_writer::PROFILE}else if wrapped {super::wrapped_writer::PROFILE}else if literals {super::literal_writer::PROFILE}else if strings {super::string_writer::PROFILE}else if conditional {super::conditional_writer::PROFILE}else if headers {super::parameter_writer::PROFILE}else if context {super::context_writer::PROFILE}else if root_sidecars {super::sidecar_writer::PROFILE}else if optional_form {super::optional_form_writer::PROFILE}else if diagnostics.is_some() {super::diagnostics_writer::PROFILE}else if configuration {super::corpus_config_writer::PROFILE}else if root_help {super::corpus_help_writer::PROFILE}else if bin_bytes.is_some() {super::corpus_bin_writer::PROFILE}else if corpus {super::corpus_writer::PROFILE}else if workflows {super::workflow_writer::PROFILE}else if reports {super::report_writer::PROFILE}else if registers {super::register_writer::PROFILE}else if charts {super::chart_writer::PROFILE}else if services {super::service_writer::PROFILE}else if journals {super::journal_writer::PROFILE}else if leaves {super::leaf_writer::PROFILE}else if shared {super::shared_writer::PROFILE}else if roots {super::root_writer::PROFILE}else if common {super::common_writer::PROFILE}else{PROFILE},date,source_id,receipt.manifest.commit(),receipt.manifest.tree(),contract::CORE,contract::ADAPTER,
-                if source_anomalies && lexical_tail {super::navigator_agreement_writer::LEXICAL}else if source_anomalies {super::source_anomalies_writer::LEXICAL}else if lexical_tail {super::lexical_tail_writer::LEXICAL}else if long_headers {super::long_headers_writer::LEXICAL}else if source_limits {super::source_limits_writer::LEXICAL}else if header_forms {super::header_forms_writer::LEXICAL}else if method_regions {super::method_regions_writer::LEXICAL}else if mobile_vars {super::mobile_vars_writer::LEXICAL}else if async_casing {super::async_casing_writer::LEXICAL}else if dates_members {super::dates_members_writer::LEXICAL}else if annotated_vars {super::annotated_vars_writer::LEXICAL}else if refined {super::refined_writer::LEXICAL}else if wrapped {super::wrapped_writer::LEXICAL}else if literals {super::literal_writer::LEXICAL}else if strings {super::string_writer::LEXICAL}else if conditional {super::conditional_writer::LEXICAL}else if headers {super::parameter_writer::LEXICAL}else if context {super::context_writer::LEXICAL}else{contract::LEXICAL},contract::SCOPE,parameters.to_string(),input_manifest.to_string(),
+            params![profile.name,date,source_id,receipt.manifest.commit(),receipt.manifest.tree(),contract::CORE,contract::ADAPTER,
+                profile.lexical.value(),contract::SCOPE,parameters.to_string(),input_manifest.to_string(),
                 coverage.to_string(),limits.json().to_string()])?;
         contract::compatible_scope(&tx)?;
         let id = contract::snapshot_id(&tx)?;

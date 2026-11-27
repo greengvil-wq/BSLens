@@ -60,11 +60,7 @@ pub(crate) fn record_payloads<F: FnMut() -> Result<()>>(
     Ok(())
 }
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
-    companion_writer::validate_metadata_mode(
-        db, true, true, true, true, true, true, true, true, true, true, true, true, true, false,
-        false, false, false, false, false, false, false, false, false, false, false, false, false,
-        false, false, false, false, false, false, false, false, false,
-    )
+    companion_writer::validate_metadata_mode(db, &super::profile_spec::CORPUS_HELP)
 }
 pub fn build(
     repo: &Path,
@@ -85,44 +81,12 @@ pub fn build(
         output,
         limits,
         git,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        true,
-        globals,
-        Some(bin_bytes),
-        true,
-        false,
-        None,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        false,
-        None,
+        &super::profile_spec::CORPUS_HELP,
+        super::companion_writer::Runtime {
+            global_opaque: globals,
+            bin_bytes: Some(bin_bytes),
+            diagnostics: None,
+            processor_help: None,
+        },
     )
 }
