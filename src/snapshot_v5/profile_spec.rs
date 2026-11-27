@@ -100,6 +100,11 @@ pub(super) enum ProcessorHelpPolicy {
     Disabled,
     Sppr,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MethodHashPolicy {
+    Disabled,
+    V1,
+}
 #[derive(Clone, Copy, Debug)]
 pub(super) struct ProfileSpec {
     pub(super) name: &'static str,
@@ -107,6 +112,7 @@ pub(super) struct ProfileSpec {
     pub(super) lexical: LexicalPolicy,
     pub(super) omit_command_help: Feature,
     pub(super) processor_help: ProcessorHelpPolicy,
+    pub(super) method_hash: MethodHashPolicy,
 }
 pub(super) const COMPANION: ProfileSpec = ProfileSpec {
     name: "linux-v5-companion1-xml221-r09",
@@ -151,6 +157,7 @@ pub(super) const COMPANION: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const COMMON: ProfileSpec = ProfileSpec {
     name: "linux-v5-common1-xml221-r09",
@@ -161,6 +168,7 @@ pub(super) const COMMON: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const ROOT: ProfileSpec = ProfileSpec {
     name: "linux-v5-roots1-xml221-r09",
@@ -171,6 +179,7 @@ pub(super) const ROOT: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const SHARED: ProfileSpec = ProfileSpec {
     name: "linux-v5-shared1-xml221-r09",
@@ -181,6 +190,7 @@ pub(super) const SHARED: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const LEAF: ProfileSpec = ProfileSpec {
     name: "linux-v5-leaf1-xml221-r09",
@@ -191,6 +201,7 @@ pub(super) const LEAF: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const JOURNAL: ProfileSpec = ProfileSpec {
     name: "linux-v5-journal1-xml221-r09",
@@ -201,6 +212,7 @@ pub(super) const JOURNAL: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const SERVICE: ProfileSpec = ProfileSpec {
     name: "linux-v5-service1-xml221-r09",
@@ -211,6 +223,7 @@ pub(super) const SERVICE: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const CHART: ProfileSpec = ProfileSpec {
     name: "linux-v5-chart1-xml221-r09",
@@ -221,6 +234,7 @@ pub(super) const CHART: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const REGISTER: ProfileSpec = ProfileSpec {
     name: "linux-v5-register1-xml221-r09",
@@ -231,6 +245,7 @@ pub(super) const REGISTER: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const REPORT: ProfileSpec = ProfileSpec {
     name: "linux-v5-report1-xml221-r09",
@@ -241,6 +256,7 @@ pub(super) const REPORT: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const WORKFLOW: ProfileSpec = ProfileSpec {
     name: "linux-v5-workflow1-xml221-r09",
@@ -251,6 +267,7 @@ pub(super) const WORKFLOW: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const CORPUS: ProfileSpec = ProfileSpec {
     name: "linux-v5-corpus1-xml221-r09",
@@ -261,6 +278,7 @@ pub(super) const CORPUS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const CORPUS_BIN: ProfileSpec = ProfileSpec {
     name: "linux-v5-corpus-bin1-xml221-r09",
@@ -271,6 +289,7 @@ pub(super) const CORPUS_BIN: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const CORPUS_HELP: ProfileSpec = ProfileSpec {
     name: "linux-v5-corpus-help1-xml221-r09",
@@ -281,6 +300,7 @@ pub(super) const CORPUS_HELP: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const CORPUS_CONFIG: ProfileSpec = ProfileSpec {
     name: "linux-v5-corpus-config1-xml221-r09",
@@ -291,6 +311,7 @@ pub(super) const CORPUS_CONFIG: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const DIAGNOSTICS: ProfileSpec = ProfileSpec {
     name: "linux-v5-diagnostics1-xml221-r09",
@@ -301,6 +322,7 @@ pub(super) const DIAGNOSTICS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const OPTIONAL_FORM: ProfileSpec = ProfileSpec {
     name: "linux-v5-optional-form1-xml221-r09",
@@ -311,6 +333,7 @@ pub(super) const OPTIONAL_FORM: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const SIDECAR: ProfileSpec = ProfileSpec {
     name: "linux-v5-root-sidecar1-xml221-r09",
@@ -321,6 +344,7 @@ pub(super) const SIDECAR: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::Contract,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const CONTEXT: ProfileSpec = ProfileSpec {
     name: "linux-v5-context1-xml221-r09",
@@ -331,6 +355,7 @@ pub(super) const CONTEXT: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::ContextWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const PARAMETER: ProfileSpec = ProfileSpec {
     name: "linux-v5-parameters1-xml221-r09",
@@ -341,6 +366,7 @@ pub(super) const PARAMETER: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::ParameterWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const CONDITIONAL: ProfileSpec = ProfileSpec {
     name: "linux-v5-conditionals1-xml221-r09",
@@ -351,6 +377,7 @@ pub(super) const CONDITIONAL: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::ConditionalWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const STRING: ProfileSpec = ProfileSpec {
     name: "linux-v5-strings1-xml221-r09",
@@ -361,6 +388,7 @@ pub(super) const STRING: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::StringWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const LITERAL: ProfileSpec = ProfileSpec {
     name: "linux-v5-literals1-xml221-r09",
@@ -371,6 +399,7 @@ pub(super) const LITERAL: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::LiteralWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const WRAPPED: ProfileSpec = ProfileSpec {
     name: "linux-v5-wrapped1-xml221-r09",
@@ -381,6 +410,7 @@ pub(super) const WRAPPED: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::WrappedWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const REFINED: ProfileSpec = ProfileSpec {
     name: "linux-v5-refinements1-xml221-r09",
@@ -391,6 +421,7 @@ pub(super) const REFINED: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::RefinedWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const ANNOTATED_VARS: ProfileSpec = ProfileSpec {
     name: "linux-v5-annotated-vars1-xml221-r09",
@@ -401,6 +432,7 @@ pub(super) const ANNOTATED_VARS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::AnnotatedVarsWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const DATES_MEMBERS: ProfileSpec = ProfileSpec {
     name: "linux-v5-dates-members1-xml221-r09",
@@ -411,6 +443,7 @@ pub(super) const DATES_MEMBERS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::DatesMembersWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const ASYNC_CASING: ProfileSpec = ProfileSpec {
     name: "linux-v5-async-casing1-xml221-r09",
@@ -421,6 +454,7 @@ pub(super) const ASYNC_CASING: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::AsyncCasingWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const MOBILE_VARS: ProfileSpec = ProfileSpec {
     name: "linux-v5-mobile-vars1-xml221-r09",
@@ -431,6 +465,7 @@ pub(super) const MOBILE_VARS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::MobileVarsWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const METHOD_REGIONS: ProfileSpec = ProfileSpec {
     name: "linux-v5-method-regions1-xml221-r09",
@@ -441,6 +476,7 @@ pub(super) const METHOD_REGIONS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::MethodRegionsWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const HEADER_FORMS: ProfileSpec = ProfileSpec {
     name: "linux-v5-header-forms1-xml221-r09",
@@ -451,6 +487,7 @@ pub(super) const HEADER_FORMS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::HeaderFormsWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const SOURCE_LIMITS: ProfileSpec = ProfileSpec {
     name: "linux-v5-source-limits1-xml221-r09",
@@ -461,6 +498,7 @@ pub(super) const SOURCE_LIMITS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::SourceLimitsWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const LONG_HEADERS: ProfileSpec = ProfileSpec {
     name: "linux-v5-long-headers1-xml221-r09",
@@ -471,6 +509,7 @@ pub(super) const LONG_HEADERS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::LongHeadersWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const SOURCE_ANOMALIES: ProfileSpec = ProfileSpec {
     name: "linux-v5-source-anomalies1-xml221-r09",
@@ -481,6 +520,7 @@ pub(super) const SOURCE_ANOMALIES: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::SourceAnomaliesWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const LEXICAL_TAIL: ProfileSpec = ProfileSpec {
     name: "linux-v5-lexical-tail1-xml221-r09",
@@ -491,6 +531,7 @@ pub(super) const LEXICAL_TAIL: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::LexicalTailWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const NAVIGATOR_AGREEMENT: ProfileSpec = ProfileSpec {
     name: "linux-v5-navigator-agreement1-xml221-r09",
@@ -501,6 +542,7 @@ pub(super) const NAVIGATOR_AGREEMENT: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::NavigatorAgreementWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const NAVIGATOR_OWNERS: ProfileSpec = ProfileSpec {
     name: "linux-v5-navigator-owners1-xml221-r09",
@@ -511,6 +553,7 @@ pub(super) const NAVIGATOR_OWNERS: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::NavigatorAgreementWriter,
     omit_command_help: Feature::Off,
     processor_help: ProcessorHelpPolicy::Disabled,
+    method_hash: MethodHashPolicy::Disabled,
 };
 pub(super) const NAVIGATOR_SPPR: ProfileSpec = ProfileSpec {
     name: "linux-v5-navigator-sppr1-xml221-r09",
@@ -521,6 +564,7 @@ pub(super) const NAVIGATOR_SPPR: ProfileSpec = ProfileSpec {
     lexical: LexicalPolicy::NavigatorAgreementWriter,
     omit_command_help: Feature::On,
     processor_help: ProcessorHelpPolicy::Sppr,
+    method_hash: MethodHashPolicy::Disabled,
 };
 #[allow(dead_code)]
 pub(super) const ALL: &[&ProfileSpec] = &[
@@ -632,6 +676,14 @@ mod tests {
         for (spec, name) in pairs {
             assert_eq!(spec.name, *name);
         }
+    }
+
+    #[test]
+    fn legacy_method_hash_disabled() {
+        assert_eq!(ALL.len(), 38);
+        assert!(ALL
+            .iter()
+            .all(|profile| profile.method_hash == MethodHashPolicy::Disabled));
     }
 
     #[test]

@@ -9,18 +9,14 @@ pub(crate) fn schema() -> String {
         .replace(super::navigator_agreement_writer::PROFILE, PROFILE)
 }
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
-    validate_metadata_for(db, false)
+    validate_metadata_for(db, &super::profile_spec::NAVIGATOR_OWNERS)
 }
 
-pub(super) fn validate_metadata_for(db: &Connection, sppr: bool) -> Result<()> {
-    companion_writer::validate_metadata_mode(
-        db,
-        if sppr {
-            &super::profile_spec::NAVIGATOR_SPPR
-        } else {
-            &super::profile_spec::NAVIGATOR_OWNERS
-        },
-    )?;
+pub(super) fn validate_metadata_for(
+    db: &Connection,
+    profile: &'static super::profile_spec::ProfileSpec,
+) -> Result<()> {
+    companion_writer::validate_metadata_mode(db, profile)?;
     sidecar_writer::validate_summary(db)?;
     let (count, bad): (u64, bool) = db.query_row(
         "SELECT (SELECT count(*) FROM bsl_source_anomalies), EXISTS(SELECT 1 FROM bsl_source_anomalies a JOIN modules m ON m.path=a.module_path JOIN source_lines l ON l.path=a.module_path AND l.line_number=a.physical_line WHERE m.parse_status<>'accepted' OR a.byte_start<l.byte_start OR a.byte_end>l.byte_end)",

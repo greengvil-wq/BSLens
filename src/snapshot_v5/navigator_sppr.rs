@@ -194,7 +194,7 @@ fn usable_entry(entry: &Value) -> bool {
 }
 
 pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
-    navigator_command_help_writer::validate_metadata(db)?;
+    navigator_command_help_writer::validate_metadata(db, &super::profile_spec::NAVIGATOR_SPPR)?;
     let policy = super::corpus_bin_writer::stored_policy(db)?;
     let owners = policy
         .processor_help

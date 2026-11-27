@@ -58,8 +58,11 @@ pub(crate) fn apply_coverage(coverage: &mut Value, manifest: &Value) -> Result<(
     Ok(())
 }
 
-pub(super) fn validate_metadata(db: &Connection) -> Result<()> {
-    navigator_owners_writer::validate_metadata_for(db, true)?;
+pub(super) fn validate_metadata(
+    db: &Connection,
+    profile: &'static super::profile_spec::ProfileSpec,
+) -> Result<()> {
+    navigator_owners_writer::validate_metadata_for(db, profile)?;
     let mut expected = json!({});
     apply_coverage(&mut expected, &read_manifest(db)?)?;
     let raw: String = db.query_row("SELECT coverage_draft FROM metadata", [], |r| r.get(0))?;
