@@ -102,7 +102,6 @@ pub(super) enum ProcessorHelpPolicy {
 }
 #[derive(Clone, Copy, Debug)]
 pub(super) struct ProfileSpec {
-    #[allow(dead_code)]
     pub(super) name: &'static str,
     pub(super) features: Features,
     pub(super) lexical: LexicalPolicy,
