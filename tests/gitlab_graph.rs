@@ -92,6 +92,13 @@ fn graph_real_repository() {
         .reason,
         ReasonCode::MissingObject
     );
+    let blob = r.git(&["rev-parse", "HEAD:b"]);
+    assert_eq!(
+        check_graph(&input(&blob, &start, &head, &start), &git)
+            .unwrap_err()
+            .reason,
+        ReasonCode::NotACommit
+    );
     let tree = r.git(&["rev-parse", "HEAD^{tree}"]);
     assert_eq!(
         check_graph(&input(&tree, &start, &head, &start), &git)
@@ -493,5 +500,61 @@ fn unrelated_history_has_no_merge_base() {
             .unwrap_err()
             .reason,
         ReasonCode::MergeBaseMismatch
+    );
+}
+
+#[test]
+fn mock_diff_respects_path_limit() {
+    use bslens_core::gitlab::{
+        paths::changed_paths,
+        types::{Limits, VendorPolicy},
+    };
+    let s = "a".repeat(40);
+    let header = format!(":100644 100644 {s} {s} M\0");
+    let mut diff = Vec::new();
+    for path in ["one", "two"] {
+        diff.extend_from_slice(header.as_bytes());
+        diff.extend_from_slice(path.as_bytes());
+        diff.push(0);
+    }
+    let limits = Limits {
+        max_paths: 1,
+        ..Limits::default()
+    };
+    assert_eq!(
+        changed_paths(
+            &input(&s, &s, &s, &s),
+            &VendorPolicy::default(),
+            &limits,
+            &PathMock { diff: Ok(diff) }
+        )
+        .unwrap_err()
+        .reason,
+        ReasonCode::LimitExceeded
+    );
+}
+
+#[test]
+fn sha256_repository_graph() {
+    let r = Repo::new();
+    let dir = r.0.join("sha256");
+    let status = Command::new("/usr/bin/git")
+        .args(["init", "-q", "--object-format=sha256"])
+        .arg(&dir)
+        .status()
+        .unwrap();
+    if !status.success() {
+        eprintln!("SKIP: installed git does not support SHA-256 repositories");
+        return;
+    }
+    let repo = Repo(dir);
+    let sha = repo.commit("a", "sha256");
+    assert_eq!(sha.len(), 64);
+    assert!(check_graph(&input(&sha, &sha, &sha, &sha), &repo.reader()).is_ok());
+    assert_eq!(
+        check_graph(&input(&sha[..40], &sha, &sha, &sha), &repo.reader())
+            .unwrap_err()
+            .reason,
+        ReasonCode::MissingObject
     );
 }
