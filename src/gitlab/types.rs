@@ -75,13 +75,13 @@ pub struct PropertyChange {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Finding {
     pub reason: ReasonCode,
-    pub evidence: Evidence,
+    pub evidence: Box<Evidence>,
 }
 impl Finding {
     pub fn new(reason: ReasonCode) -> Self {
         Self {
             reason,
-            evidence: Evidence::default(),
+            evidence: Box::default(),
         }
     }
 }

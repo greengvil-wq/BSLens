@@ -59,8 +59,13 @@ pub fn changed_paths(
     {
         return Err(bad(ReasonCode::GitFailure));
     }
-    let before = tree(&git.tree(&input.base, ".").map_err(git_finding)?)?;
-    let after = tree(&git.tree(&input.head, ".").map_err(git_finding)?)?;
+    let before_bytes = git.tree(&input.base, ".").map_err(git_finding)?;
+    let after_bytes = git.tree(&input.head, ".").map_err(git_finding)?;
+    if before_bytes.len() > limits.max_output_bytes || after_bytes.len() > limits.max_output_bytes {
+        return Err(bad(ReasonCode::LimitExceeded));
+    }
+    let before = tree(&before_bytes)?;
+    let after = tree(&after_bytes)?;
     let mut scope = BTreeSet::new();
     for (path, mode) in before.iter().chain(after.iter()) {
         if in_root(path, root) {
@@ -72,12 +77,21 @@ pub fn changed_paths(
         }
     }
     let output = git.diff(&input.base, &input.head).map_err(git_finding)?;
+    if output.len() > limits.max_output_bytes {
+        return Err(bad(ReasonCode::LimitExceeded));
+    }
     let fields = records(&output)?;
     let mut i = 0;
     let mut changed = BTreeMap::new();
     while i < fields.len() {
         let status = fields[i];
         i += 1;
+        if !(matches!(status, b"A" | b"M" | b"D" | b"T")
+            || ((status.starts_with(b"R") || status.starts_with(b"C"))
+                && status[1..].iter().all(u8::is_ascii_digit)))
+        {
+            return Err(bad(ReasonCode::UnsupportedEntry));
+        }
         let kind = *status.first().ok_or_else(|| bad(ReasonCode::GitFailure))?;
         let count = if kind == b'R' || kind == b'C' { 2 } else { 1 };
         if i + count > fields.len() {

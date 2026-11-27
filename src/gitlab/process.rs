@@ -69,7 +69,7 @@ impl ProcessGit {
             .stdout
             .take()
             .ok_or(GitError::Failure)?
-            .take(self.max_output_bytes as u64 + 1)
+            .take((self.max_output_bytes as u64).saturating_add(1))
             .read_to_end(&mut output);
         if result.is_err() || output.len() > self.max_output_bytes {
             let _ = child.kill();
@@ -129,7 +129,16 @@ impl GitReader for ProcessGit {
         self.lines(&["rev-list", &format!("{a}..{b}")])
     }
     fn diff(&self, a: &str, b: &str) -> GitResult<Vec<u8>> {
-        self.run(["diff", "--name-status", "-z", "--no-renames", a, b])
+        self.run([
+            "diff",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "-z",
+            "--no-renames",
+            a,
+            b,
+        ])
     }
     fn tree(&self, tree: &str, root: &str) -> GitResult<Vec<u8>> {
         self.run(["ls-tree", "-r", "-z", tree, "--", root])

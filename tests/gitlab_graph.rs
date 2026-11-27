@@ -355,3 +355,39 @@ fn real_repository_read_only() {
         result.scope_count
     );
 }
+
+#[test]
+fn criss_cross_real_graph_has_two_bases() {
+    let r = Repo::new();
+    let base = r.commit("a", "base");
+    let left = r.commit("a", "left");
+    r.git(&["checkout", "-q", "--detach", &base]);
+    let right = r.commit("b", "right");
+    let tree = r.git(&["rev-parse", "HEAD^{tree}"]);
+    let merge1 = r.git(&[
+        "commit-tree",
+        &tree,
+        "-p",
+        &left,
+        "-p",
+        &right,
+        "-m",
+        "merge1",
+    ]);
+    let merge2 = r.git(&[
+        "commit-tree",
+        &tree,
+        "-p",
+        &right,
+        "-p",
+        &left,
+        "-m",
+        "merge2",
+    ]);
+    assert_eq!(
+        check_graph(&input(&base, &merge1, &merge2, &merge1), &r.reader())
+            .unwrap_err()
+            .reason,
+        ReasonCode::MultipleMergeBases
+    );
+}
