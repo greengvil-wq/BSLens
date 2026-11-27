@@ -41,6 +41,8 @@ pub mod xml221;
 
 #[cfg(feature = "experimental-git")]
 pub mod git_manifest;
+#[cfg(feature = "gitlab")]
+pub mod gitlab;
 #[cfg(feature = "experimental-tree")]
 pub mod structure;
 
