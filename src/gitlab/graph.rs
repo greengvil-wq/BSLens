@@ -8,11 +8,28 @@ pub struct GraphOk {
 }
 
 pub(crate) fn git_finding(error: GitError) -> Finding {
-    Finding::new(match error {
+    finding(match error {
         GitError::MissingObject => ReasonCode::MissingObject,
         GitError::LimitExceeded => ReasonCode::LimitExceeded,
         GitError::Failure | GitError::UnsupportedPlatform => ReasonCode::GitFailure,
     })
+}
+
+fn finding(reason: ReasonCode) -> Finding {
+    let mut result = Finding::new(reason);
+    result.evidence.rule_id = Some("R3".into());
+    result
+}
+fn object_finding(reason: ReasonCode, oid: &str) -> Finding {
+    let mut result = finding(reason);
+    result.evidence.object_oid = Some(oid.into());
+    result
+}
+fn bases_finding(reason: ReasonCode, base: &str, bases: Vec<String>) -> Finding {
+    let mut result = finding(reason);
+    result.evidence.base_oid = Some(base.into());
+    result.evidence.merge_bases = bases;
+    result
 }
 
 pub fn check_graph(input: &LocalInput, git: &dyn GitReader) -> Result<GraphOk, Finding> {
@@ -23,14 +40,21 @@ pub fn check_graph(input: &LocalInput, git: &dyn GitReader) -> Result<GraphOk, F
                 .bytes()
                 .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
         {
-            return Err(Finding::new(ReasonCode::MissingObject));
+            return Err(object_finding(ReasonCode::MissingObject, oid));
         }
-        if git.object_type(oid).map_err(git_finding)? != "commit" {
-            return Err(Finding::new(ReasonCode::NotACommit));
+        if git.object_type(oid).map_err(|e| {
+            if e == GitError::MissingObject {
+                object_finding(ReasonCode::MissingObject, oid)
+            } else {
+                git_finding(e)
+            }
+        })? != "commit"
+        {
+            return Err(object_finding(ReasonCode::NotACommit, oid));
         }
     }
     if git.is_shallow().map_err(git_finding)? {
-        return Err(Finding::new(ReasonCode::ShallowRepository));
+        return Err(finding(ReasonCode::ShallowRepository));
     }
     for (other, mismatch) in [
         (&input.start, ReasonCode::MergeBaseMismatch),
@@ -38,10 +62,14 @@ pub fn check_graph(input: &LocalInput, git: &dyn GitReader) -> Result<GraphOk, F
     ] {
         let bases = git.merge_bases(other, &input.head).map_err(git_finding)?;
         if bases.len() > 1 {
-            return Err(Finding::new(ReasonCode::MultipleMergeBases));
+            return Err(bases_finding(
+                ReasonCode::MultipleMergeBases,
+                &input.base,
+                bases,
+            ));
         }
         if bases.len() != 1 || bases[0] != input.base {
-            return Err(Finding::new(mismatch));
+            return Err(bases_finding(mismatch, &input.base, bases));
         }
     }
     Ok(GraphOk {

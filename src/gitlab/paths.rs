@@ -10,7 +10,23 @@ pub struct PathSet {
     pub scope_count: usize,
 }
 fn bad(reason: ReasonCode) -> Finding {
-    Finding::new(reason)
+    let mut result = Finding::new(reason);
+    result.evidence.rule_id = Some("R1".into());
+    result
+}
+// Lossy UTF-8 makes otherwise unrepresentable path bytes readable without exposing blob content.
+fn bad_path(reason: ReasonCode, path: &[u8]) -> Finding {
+    let mut result = bad(reason);
+    result
+        .evidence
+        .paths
+        .push(String::from_utf8_lossy(path).into_owned());
+    result
+}
+fn path_git_finding(error: super::process::GitError) -> Finding {
+    let mut result = git_finding(error);
+    result.evidence.rule_id = Some("R1".into());
+    result
 }
 fn records(bytes: &[u8]) -> Result<Vec<&[u8]>, Finding> {
     if !bytes.is_empty() && !bytes.ends_with(&[0]) {
@@ -52,8 +68,8 @@ pub fn changed_paths(
     {
         return Err(bad(ReasonCode::GitFailure));
     }
-    let before_bytes = git.tree(&input.base, root).map_err(git_finding)?;
-    let after_bytes = git.tree(&input.head, root).map_err(git_finding)?;
+    let before_bytes = git.tree(&input.base, root).map_err(path_git_finding)?;
+    let after_bytes = git.tree(&input.head, root).map_err(path_git_finding)?;
     if before_bytes.len() > limits.max_output_bytes || after_bytes.len() > limits.max_output_bytes {
         return Err(bad(ReasonCode::LimitExceeded));
     }
@@ -62,12 +78,14 @@ pub fn changed_paths(
     let mut scope = BTreeSet::new();
     for (path, mode) in before.iter().chain(after.iter()) {
         if !supported(mode) {
-            return Err(bad(ReasonCode::UnsupportedEntry));
+            return Err(bad_path(ReasonCode::UnsupportedEntry, path));
         }
-        std::str::from_utf8(path).map_err(|_| bad(ReasonCode::NonUtf8Path))?;
+        std::str::from_utf8(path).map_err(|_| bad_path(ReasonCode::NonUtf8Path, path))?;
         scope.insert(path.clone());
     }
-    let output = git.diff(&input.base, &input.head).map_err(git_finding)?;
+    let output = git
+        .diff(&input.base, &input.head)
+        .map_err(path_git_finding)?;
     if output.len() > limits.max_output_bytes {
         return Err(bad(ReasonCode::LimitExceeded));
     }
@@ -102,12 +120,12 @@ pub fn changed_paths(
         }
         for n in 0..count {
             let path = fields[i + n];
-            std::str::from_utf8(path).map_err(|_| bad(ReasonCode::NonUtf8Path))?;
+            std::str::from_utf8(path).map_err(|_| bad_path(ReasonCode::NonUtf8Path, path))?;
             if [parts[0], parts[1]]
                 .iter()
                 .any(|m| *m != b"000000" && !supported(m))
             {
-                return Err(bad(ReasonCode::UnsupportedEntry));
+                return Err(bad_path(ReasonCode::UnsupportedEntry, path));
             }
             let change = match (kind, n) {
                 (b'A', _) => Change::Added,
@@ -118,7 +136,7 @@ pub fn changed_paths(
                 _ => return Err(bad(ReasonCode::UnsupportedEntry)),
             };
             if changed.insert(path.to_vec(), change).is_some() {
-                return Err(bad(ReasonCode::UnsupportedEntry));
+                return Err(bad_path(ReasonCode::UnsupportedEntry, path));
             }
             if changed.len() > limits.max_paths {
                 return Err(bad(ReasonCode::LimitExceeded));

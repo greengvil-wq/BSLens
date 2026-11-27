@@ -59,6 +59,8 @@ pub struct Evidence {
     pub rule_id: Option<String>,
     pub paths: Vec<String>,
     pub base_oid: Option<String>,
+    pub object_oid: Option<String>,
+    pub merge_bases: Vec<String>,
     pub head_oid: Option<String>,
     pub properties: Vec<PropertyChange>,
     pub changed_count: Option<usize>,

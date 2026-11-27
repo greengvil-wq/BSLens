@@ -67,10 +67,11 @@ fn graph_real_repository() {
     let ok = input(&base, &start, &head, &start);
     assert!(check_graph(&ok, &git).is_ok());
     let advanced = input(&base, &start, &head, &head);
-    assert_eq!(
-        check_graph(&advanced, &git).unwrap_err().reason,
-        ReasonCode::StaleTarget
-    );
+    let stale = check_graph(&advanced, &git).unwrap_err();
+    assert_eq!(stale.reason, ReasonCode::StaleTarget);
+    assert_eq!(stale.evidence.rule_id.as_deref(), Some("R3"));
+    assert_eq!(stale.evidence.base_oid.as_deref(), Some(base.as_str()));
+    assert_eq!(stale.evidence.merge_bases, vec![head.clone()]);
     let mismatch = input(&head, &start, &head, &start);
     assert_eq!(
         check_graph(&mismatch, &git).unwrap_err().reason,
@@ -176,11 +177,13 @@ impl GitReader for Multiple {
 #[test]
 fn multiple_bases_are_rejected() {
     let s = "a".repeat(40);
+    let finding = check_graph(&input(&s, &s, &s, &s), &Multiple).unwrap_err();
+    assert_eq!(finding.reason, ReasonCode::MultipleMergeBases);
+    assert_eq!(finding.evidence.rule_id.as_deref(), Some("R3"));
+    assert_eq!(finding.evidence.base_oid.as_deref(), Some(s.as_str()));
     assert_eq!(
-        check_graph(&input(&s, &s, &s, &s), &Multiple)
-            .unwrap_err()
-            .reason,
-        ReasonCode::MultipleMergeBases
+        finding.evidence.merge_bases,
+        vec!["a".repeat(40), "b".repeat(40)]
     );
 }
 
