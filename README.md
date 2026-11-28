@@ -1,3 +1,5 @@
+> **BSLens заморожен.** Дальнейшая основа системы приёмки — [onec-navigator](https://github.com/greengvil-wq/onec-navigator). Подробности — в [ADR-056](docs/adr-056-bslens-freeze.md).
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/bslens-dark.svg">
   <img alt="BSLens: только нужный контекст для ИИ-агента" src="assets/bslens-light.svg" width="440">
